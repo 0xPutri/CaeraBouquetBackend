@@ -24,7 +24,13 @@ INSTALLED_APPS = [
     'corsheaders',
 
     # Local apps
+    'users',
+    'products',
+    'orders',
 ]
+
+# Custom User Model
+AUTH_USER_MODEL = 'users.User'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware', # CORS
