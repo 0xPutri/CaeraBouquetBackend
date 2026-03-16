@@ -4,6 +4,8 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    # Route Autentikasi
-    path('api/auth/', include('users.urls')),
+    # API Endpoints
+    path('api/', include('users.urls')), # /api/auth/* & /api/users/*
+    path('api/', include('products.urls')), # /api/categories/ & /api/products/
+    path('api/', include('orders.urls')), # /api/orders/
 ]

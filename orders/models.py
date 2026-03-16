@@ -26,6 +26,11 @@ class Transaction(models.Model):
     quantity = models.PositiveIntegerField(default=1)
     price = models.DecimalField(max_digits=12, decimal_places=2)
 
+    def save(self, *args, **kwargs):
+        if not self.price and self.product:
+            self.price = self.product.price
+        super().save(*args, **kwargs)
+
     def __str__(self):
         product_name = self.product.name if self.product else "Produk Dihapus"
         return f"{self.quantity}x {product_name} (Order #{self.order.id})"
