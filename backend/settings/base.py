@@ -112,14 +112,41 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Konfigurasi Swagger UI
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'CaeraBouquet API',
-    'DESCRIPTION': 'Dokumentasi REST API resmi untuk backend CaeraBouquet. Mencakup fitur autentikasi, manajemen katalog, pemesanan, dan integrasi rekomendasi Machine Learning.',
+    'TITLE': 'CaeraBouquet Backend API',
+    'DESCRIPTION': 'Dokumentasi REST API resmi untuk backend Caera Bouquet.\n\nDokumentasi ini memuat endpoint autentikasi, profil pengguna, katalog produk, pemesanan, dan rekomendasi produk berbasis machine learning. Seluruh skema disusun untuk memudahkan integrasi frontend dan pengujian endpoint secara konsisten.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
+    'CONTACT': {
+        'name': 'Tim Pengembang Caera Bouquet',
+    },
+    'TAGS': [
+        {
+            'name': 'Autentikasi',
+            'description': 'Endpoint untuk registrasi, login, dan pembaruan token akses.',
+        },
+        {
+            'name': 'Pengguna',
+            'description': 'Endpoint untuk mengambil informasi profil pengguna yang sedang login.',
+        },
+        {
+            'name': 'Katalog',
+            'description': 'Endpoint publik untuk melihat kategori dan produk bouquet.',
+        },
+        {
+            'name': 'Pesanan',
+            'description': 'Endpoint untuk membuat pesanan baru dan melihat riwayat pesanan pengguna.',
+        },
+        {
+            'name': 'Rekomendasi ML',
+            'description': 'Endpoint integrasi machine learning untuk memberikan rekomendasi produk.',
+        },
+    ],
     'SWAGGER_UI_SETTINGS': {
         'deepLinking': True,
         'persistAuthorization': True,
         'displayOperationId': True,
+        'displayRequestDuration': True,
+        'docExpansion': 'list',
     },
 }

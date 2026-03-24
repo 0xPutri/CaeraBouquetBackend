@@ -3,6 +3,12 @@ from django.conf import settings
 from products.models import Product
 
 class Order(models.Model):
+    """Menyimpan data utama pesanan yang dibuat pengguna.
+
+    Model ini merekam pemilik pesanan, nilai total, status proses,
+    alamat pengiriman, serta catatan tambahan dari pelanggan.
+    """
+
     STATUS_CHOICES = [
         ('created', 'Dibuat'),
         ('processing', 'Diproses'),
@@ -18,19 +24,44 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
+        """Mengembalikan identitas ringkas dari pesanan.
+
+        Returns:
+            str: Teks yang memuat nomor pesanan dan nama pengguna.
+        """
         return f"Order #{self.id} - {self.user.name}"
     
 class Transaction(models.Model):
+    """Menyimpan detail item produk pada sebuah pesanan.
+
+    Model ini menghubungkan pesanan dengan produk yang dibeli, jumlah
+    item, serta harga yang dicatat saat transaksi dibuat.
+    """
+
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='transactions')
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
     quantity = models.PositiveIntegerField(default=1)
     price = models.DecimalField(max_digits=12, decimal_places=2)
 
     def save(self, *args, **kwargs):
+        """Menyimpan transaksi dan mengisi harga dari produk bila perlu.
+
+        Args:
+            *args: Argumen tambahan untuk method `save`.
+            **kwargs: Argumen keyword tambahan untuk method `save`.
+
+        Returns:
+            None: Method ini tidak mengembalikan nilai.
+        """
         if not self.price and self.product:
             self.price = self.product.price
         super().save(*args, **kwargs)
 
     def __str__(self):
+        """Mengembalikan representasi teks dari detail transaksi.
+
+        Returns:
+            str: Teks yang memuat jumlah produk dan identitas pesanan.
+        """
         product_name = self.product.name if self.product else "Produk Dihapus"
         return f"{self.quantity}x {product_name} (Order #{self.order.id})"

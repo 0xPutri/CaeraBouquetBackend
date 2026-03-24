@@ -3,7 +3,27 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.db import models
 
 class UserManager(BaseUserManager):
+    """Mengelola proses pembuatan akun pengguna.
+
+    Manager ini menyediakan alur pembuatan pengguna biasa dan superuser
+    dengan validasi email dasar yang dibutuhkan sistem autentikasi.
+    """
+
     def create_user(self, email, name, password=None, **extra_fields):
+        """Membuat akun pengguna baru dengan email sebagai identitas utama.
+
+        Args:
+            email (str): Alamat email yang akan digunakan untuk login.
+            name (str): Nama pengguna yang disimpan pada profil akun.
+            password (str | None): Kata sandi awal untuk akun pengguna.
+            **extra_fields: Field tambahan yang ingin disimpan ke model.
+
+        Returns:
+            User: Objek pengguna yang sudah tersimpan di database.
+
+        Raises:
+            ValueError: Jika email tidak diberikan saat pembuatan akun.
+        """
         if not email:
             raise ValueError("Email wajib diisi")
         email = self.normalize_email(email)
@@ -13,11 +33,28 @@ class UserManager(BaseUserManager):
         return user
     
     def create_superuser(self, email, name, password=None, **extra_fields):
+        """Membuat akun superuser dengan hak akses administratif.
+
+        Args:
+            email (str): Alamat email untuk akun administrator.
+            name (str): Nama administrator yang akan disimpan.
+            password (str | None): Kata sandi untuk akun administrator.
+            **extra_fields: Field tambahan yang diteruskan ke model pengguna.
+
+        Returns:
+            User: Objek superuser yang sudah tersimpan di database.
+        """
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         return self.create_user(email, name, password, **extra_fields)
     
 class User(AbstractBaseUser, PermissionsMixin):
+    """Merepresentasikan akun pengguna pada sistem Caera Bouquet.
+
+    Model ini menyimpan identitas dasar pengguna, status akses, dan
+    informasi verifikasi email untuk kebutuhan autentikasi aplikasi.
+    """
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=255)
@@ -36,8 +73,17 @@ class User(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = ['name']
 
     def __str__(self):
+        """Mengembalikan representasi teks dari pengguna.
+
+        Returns:
+            str: Nilai email pengguna.
+        """
         return self.email
     
     def send_verification_email(self):
-        """Mockup template pengiriman email verifikasi"""
+        """Mensimulasikan proses pengiriman email verifikasi.
+
+        Method ini masih berupa mockup sederhana untuk menampilkan alur
+        pengiriman email verifikasi pada tahap pengembangan.
+        """
         print(f"[MOCKUP] Mengirim email verifikasi ke {self.email}")

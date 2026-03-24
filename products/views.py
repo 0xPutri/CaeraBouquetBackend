@@ -4,40 +4,95 @@ from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.conf import settings
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view, OpenApiParameter, OpenApiTypes
 from .models import Category, Product
 from .serializers import CategorySerializer, ProductSerializer
 from urllib.parse import urlparse
 
-@extend_schema(tags=['Katalog'])
+@extend_schema_view(
+    list=extend_schema(
+        tags=['Katalog'],
+        summary='Melihat daftar kategori produk',
+        description='Endpoint publik untuk menampilkan seluruh kategori bouquet yang tersedia pada katalog.',
+        responses={200: CategorySerializer},
+    ),
+    retrieve=extend_schema(
+        tags=['Katalog'],
+        summary='Melihat detail kategori produk',
+        description='Endpoint publik untuk menampilkan detail satu kategori produk berdasarkan ID.',
+        responses={200: CategorySerializer},
+    ),
+)
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    """Melihat daftar kategori produk bouquet."""
+    """Menyediakan endpoint baca untuk kategori produk.
+
+    Viewset ini dipakai frontend untuk menampilkan daftar kategori
+    bouquet yang tersedia pada katalog publik.
+    """
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = (AllowAny,)
 
-@extend_schema(tags=['Katalog'])
+@extend_schema_view(
+    list=extend_schema(
+        tags=['Katalog'],
+        summary='Melihat daftar produk bouquet',
+        description='Endpoint publik untuk menampilkan daftar produk bouquet yang tersedia di katalog.',
+        responses={200: ProductSerializer},
+    ),
+    retrieve=extend_schema(
+        tags=['Katalog'],
+        summary='Melihat detail produk bouquet',
+        description='Endpoint publik untuk menampilkan detail satu produk bouquet berdasarkan ID.',
+        responses={200: ProductSerializer},
+    ),
+)
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
-    """Melihat daftar produk bouquet berserta detail harganya."""
-    queryset = Product.objects.select_related('category').all() # Optimasi query (mencegah N+1)
+    """Menyediakan endpoint baca untuk katalog produk bouquet.
+
+    Viewset ini menampilkan daftar produk beserta detail penting seperti
+    kategori, deskripsi, harga, dan tautan gambar produk.
+    """
+    queryset = Product.objects.select_related('category').all() # Optimasi query untuk mencegah masalah N+1.
     serializer_class = ProductSerializer
     permission_classes = (AllowAny,)
 
 @extend_schema(
     tags=['Rekomendasi ML'],
-    summary="Mendapatkan rekomendasi produk dari Machine Learning",
-    description="Endpoint ini akan meneruskan permintaan ke Service ML. Gunakan salah satu parameter: `product_id` atau `event_type`.",
+    summary='Mendapatkan rekomendasi produk',
+    description='Endpoint ini meneruskan permintaan ke layanan machine learning. Gunakan salah satu parameter: `product_id` atau `event_type`.',
     parameters=[
-        OpenApiParameter(name='product_id', description='ID Produk (Contoh: B004)', required=False, type=OpenApiTypes.STR),
-        OpenApiParameter(name='event_type', description='Kategori Acara (Contoh: birthday, wedding)', required=False, type=OpenApiTypes.STR),
-        OpenApiParameter(name='top_n', description='Jumlah rekomendasi maksimal (Default: 5)', required=False, type=OpenApiTypes.INT),
-    ]
+        OpenApiParameter(name='product_id', description='ID produk acuan untuk mencari rekomendasi serupa. Contoh: `B004`.', required=False, type=OpenApiTypes.STR),
+        OpenApiParameter(name='event_type', description='Jenis acara untuk menghasilkan rekomendasi. Contoh: `birthday` atau `wedding`.', required=False, type=OpenApiTypes.STR),
+        OpenApiParameter(name='top_n', description='Jumlah maksimum rekomendasi yang ingin dikembalikan. Nilai bawaan: `5`.', required=False, type=OpenApiTypes.INT),
+    ],
+    responses={
+        200: OpenApiResponse(description='Daftar rekomendasi berhasil dikembalikan.'),
+        400: OpenApiResponse(description='Parameter `product_id` atau `event_type` belum diberikan.'),
+        503: OpenApiResponse(description='Layanan machine learning sedang tidak tersedia.'),
+    },
 )
 
 class RecommendationView(APIView):
+    """Mengambil rekomendasi produk dari layanan machine learning.
+
+    View ini meneruskan parameter permintaan ke service ML, lalu
+    menyesuaikan hasilnya agar konsisten dengan format respons backend.
+    """
+
     permission_classes = (AllowAny,)
 
     def get(self, request, *args, **kwargs):
+        """Memproses permintaan rekomendasi berdasarkan produk atau acara.
+
+        Args:
+            request (Request): Objek request yang memuat query parameter.
+            *args: Argumen tambahan dari kelas induk.
+            **kwargs: Argumen keyword tambahan dari kelas induk.
+
+        Returns:
+            Response: Respons berisi daftar rekomendasi atau pesan galat.
+        """
         product_id = request.query_params.get('product_id')
         event_type = request.query_params.get('event_type')
         top_n = request.query_params.get('top_n', 5)
