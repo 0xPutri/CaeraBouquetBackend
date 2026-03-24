@@ -4,10 +4,30 @@ from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.conf import settings
-from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view, OpenApiParameter, OpenApiTypes
+from rest_framework import serializers
+from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema, extend_schema_view, inline_serializer, OpenApiParameter, OpenApiTypes
 from .models import Category, Product
 from .serializers import CategorySerializer, ProductSerializer
 from urllib.parse import urlparse
+
+recommendation_item_response = inline_serializer(
+    name='RecommendationItemResponse',
+    fields={
+        'product_id': serializers.CharField(help_text='ID produk hasil rekomendasi.'),
+        'name': serializers.CharField(help_text='Nama produk rekomendasi.'),
+        'price': serializers.FloatField(help_text='Harga produk rekomendasi.'),
+    },
+)
+
+recommendation_response = inline_serializer(
+    name='RecommendationResponse',
+    fields={
+        'recommendations': serializers.ListField(
+            child=serializers.DictField(),
+            help_text='Daftar produk yang direkomendasikan oleh layanan machine learning.',
+        ),
+    },
+)
 
 @extend_schema_view(
     list=extend_schema(
@@ -67,10 +87,32 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
         OpenApiParameter(name='top_n', description='Jumlah maksimum rekomendasi yang ingin dikembalikan. Nilai bawaan: `5`.', required=False, type=OpenApiTypes.INT),
     ],
     responses={
-        200: OpenApiResponse(description='Daftar rekomendasi berhasil dikembalikan.'),
+        200: OpenApiResponse(
+            response=recommendation_response,
+            description='Daftar rekomendasi berhasil dikembalikan.',
+        ),
         400: OpenApiResponse(description='Parameter `product_id` atau `event_type` belum diberikan.'),
         503: OpenApiResponse(description='Layanan machine learning sedang tidak tersedia.'),
     },
+    examples=[
+        OpenApiExample(
+            'Contoh Respons Rekomendasi Berhasil',
+            value={
+                'recommendations': [
+                    {'product_id': 'B004', 'name': 'Birthday Bouquet', 'price': 125000},
+                    {'product_id': 'B010', 'name': 'Rose Premium Bouquet', 'price': 175000},
+                ],
+            },
+            response_only=True,
+            status_codes=['200'],
+        ),
+        OpenApiExample(
+            'Contoh Respons Parameter Tidak Lengkap',
+            value={'error': "Sertakan parameter 'product_id' atau 'event_type'."},
+            response_only=True,
+            status_codes=['400'],
+        ),
+    ],
 )
 
 class RecommendationView(APIView):

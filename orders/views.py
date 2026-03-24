@@ -1,12 +1,21 @@
 from rest_framework import generics, status
+from rest_framework import serializers
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
+from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema, extend_schema_view, inline_serializer
 from .models import Order, Transaction
 from products.models import Product
 from .serializers import OrderCreateSerializer, OrderListSerializer
+
+order_create_success_response = inline_serializer(
+    name='OrderCreateSuccessResponse',
+    fields={
+        'order_id': serializers.IntegerField(help_text='ID pesanan yang berhasil dibuat.'),
+        'status': serializers.CharField(help_text='Status awal pesanan setelah dibuat.'),
+    },
+)
 
 @extend_schema_view(
     get=extend_schema(
@@ -17,6 +26,22 @@ from .serializers import OrderCreateSerializer, OrderListSerializer
             200: OrderListSerializer,
             401: OpenApiResponse(description='Autentikasi diperlukan untuk melihat riwayat pesanan.'),
         },
+        examples=[
+            OpenApiExample(
+                'Contoh Respons Riwayat Pesanan',
+                value=[
+                    {
+                        'order_id': 12,
+                        'product_name': 'Rose Bouquet Deluxe',
+                        'quantity': 2,
+                        'status': 'created',
+                        'created_at': '2026-03-24T23:40:00+07:00',
+                    }
+                ],
+                response_only=True,
+                status_codes=['200'],
+            ),
+        ],
     ),
     post=extend_schema(
         tags=['Pesanan'],
@@ -24,10 +49,42 @@ from .serializers import OrderCreateSerializer, OrderListSerializer
         description='Endpoint ini membuat pesanan baru untuk satu produk, mencatat transaksi, dan mengurangi stok produk secara atomik.',
         request=OrderCreateSerializer,
         responses={
-            201: OpenApiResponse(description='Pesanan berhasil dibuat.'),
+            201: OpenApiResponse(
+                response=order_create_success_response,
+                description='Pesanan berhasil dibuat.',
+            ),
             400: OpenApiResponse(description='Data pesanan tidak valid atau stok tidak mencukupi.'),
             401: OpenApiResponse(description='Autentikasi diperlukan untuk membuat pesanan.'),
         },
+        examples=[
+            OpenApiExample(
+                'Contoh Request Membuat Pesanan',
+                value={
+                    'product_id': 3,
+                    'quantity': 2,
+                    'delivery_address': 'Jl. Melati No. 8, Jakarta',
+                    'notes': 'Mohon dikirim sebelum pukul 17.00',
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Contoh Respons Pesanan Berhasil',
+                value={
+                    'order_id': 12,
+                    'status': 'created',
+                },
+                response_only=True,
+                status_codes=['201'],
+            ),
+            OpenApiExample(
+                'Contoh Respons Stok Tidak Cukup',
+                value={
+                    'detail': 'Stok tidak mencukupi. Sisa stok: 1',
+                },
+                response_only=True,
+                status_codes=['400'],
+            ),
+        ],
     ),
 )
 class OrderListCreateView(generics.ListCreateAPIView):

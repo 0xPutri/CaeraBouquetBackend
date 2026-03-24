@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import OpenApiTypes, extend_schema_field
 from .models import Order, Transaction
 from products.models import Product
 
@@ -29,7 +30,8 @@ class OrderListSerializer(serializers.ModelSerializer):
         model = Order
         fields = ('order_id', 'product_name', 'quantity', 'status', 'created_at')
 
-    def get_product_name(self, obj):
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_product_name(self, obj) -> str:
         """Mengambil nama produk pertama dari transaksi pesanan.
 
         Args:
@@ -41,7 +43,8 @@ class OrderListSerializer(serializers.ModelSerializer):
         transaction = obj.transactions.first()
         return transaction.product.name if transaction and transaction.product else "Produk Tidak Diketahui"
     
-    def get_quantity(self, obj):
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_quantity(self, obj) -> int:
         """Mengambil jumlah item dari transaksi pertama pada pesanan.
 
         Args:

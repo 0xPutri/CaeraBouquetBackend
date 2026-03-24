@@ -2,7 +2,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import serializers
-from drf_spectacular.utils import OpenApiResponse, extend_schema, inline_serializer
+from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema, inline_serializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .serializers import RegisterSerializer, UserProfileSerializer
 
@@ -28,6 +28,21 @@ token_refresh_request = inline_serializer(
     },
 )
 
+token_pair_response = inline_serializer(
+    name='TokenPairResponse',
+    fields={
+        'refresh': serializers.CharField(help_text='Refresh token untuk memperoleh access token baru.'),
+        'access': serializers.CharField(help_text='Access token yang digunakan pada header Authorization.'),
+    },
+)
+
+token_refresh_response = inline_serializer(
+    name='TokenRefreshResponse',
+    fields={
+        'access': serializers.CharField(help_text='Access token baru hasil pembaruan refresh token.'),
+    },
+)
+
 
 @extend_schema(
     tags=['Autentikasi'],
@@ -44,6 +59,23 @@ token_refresh_request = inline_serializer(
         ),
         400: OpenApiResponse(description='Data registrasi tidak valid.'),
     },
+    examples=[
+        OpenApiExample(
+            'Contoh Request Registrasi',
+            value={
+                'email': 'hannanime12@caera.my.id',
+                'name': 'Hanna Fernanda',
+                'password': 'Annah123#',
+            },
+            request_only=True,
+        ),
+        OpenApiExample(
+            'Contoh Respons Registrasi Berhasil',
+            value={'message': 'User registered successfully'},
+            response_only=True,
+            status_codes=['201'],
+        ),
+    ],
 )
 class RegisterView(generics.CreateAPIView):
     """Menangani proses registrasi pengguna baru.
@@ -110,9 +142,31 @@ class UserProfileView(generics.RetrieveAPIView):
     ),
     request=token_pair_request,
     responses={
-        200: OpenApiResponse(description='Login berhasil dan token JWT dikembalikan.'),
+        200: OpenApiResponse(
+            response=token_pair_response,
+            description='Login berhasil dan token JWT dikembalikan.',
+        ),
         401: OpenApiResponse(description='Email atau kata sandi tidak valid.'),
     },
+    examples=[
+        OpenApiExample(
+            'Contoh Request Login',
+            value={
+                'email': 'hannanime12@caera.my.id',
+                'password': 'Annah123#',
+            },
+            request_only=True,
+        ),
+        OpenApiExample(
+            'Contoh Respons Login Berhasil',
+            value={
+                'refresh': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh-token',
+                'access': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.access-token',
+            },
+            response_only=True,
+            status_codes=['200'],
+        ),
+    ],
 )
 class LoginView(TokenObtainPairView):
     """Menambahkan dokumentasi Swagger untuk endpoint login JWT.
@@ -128,9 +182,29 @@ class LoginView(TokenObtainPairView):
     description='Endpoint ini digunakan untuk menghasilkan access token baru dari refresh token yang masih valid.',
     request=token_refresh_request,
     responses={
-        200: OpenApiResponse(description='Access token baru berhasil dibuat.'),
+        200: OpenApiResponse(
+            response=token_refresh_response,
+            description='Access token baru berhasil dibuat.',
+        ),
         401: OpenApiResponse(description='Refresh token tidak valid atau sudah kedaluwarsa.'),
     },
+    examples=[
+        OpenApiExample(
+            'Contoh Request Refresh Token',
+            value={
+                'refresh': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh-token',
+            },
+            request_only=True,
+        ),
+        OpenApiExample(
+            'Contoh Respons Refresh Token Berhasil',
+            value={
+                'access': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.access-token-baru',
+            },
+            response_only=True,
+            status_codes=['200'],
+        ),
+    ],
 )
 class TokenRefreshDocsView(TokenRefreshView):
     """Menambahkan dokumentasi Swagger untuk endpoint refresh token.
