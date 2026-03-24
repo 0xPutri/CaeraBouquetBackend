@@ -26,7 +26,10 @@ class OrderListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
 
         data = serializer.validated_data
-        product = get_object_or_404(Product, id=data['product_id'])
+        product = get_object_or_404(
+            Product.objects.select_for_update(),
+            id=data['product_id']
+        )
         quantity = data['quantity']
 
         if product.stock < quantity:
@@ -52,7 +55,7 @@ class OrderListCreateView(generics.ListCreateAPIView):
         )
 
         product.stock -= quantity
-        product.save()
+        product.save(update_fields=['stock'])
 
         return Response(
             {
