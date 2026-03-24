@@ -3,10 +3,12 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
 from .models import Order, Transaction
 from products.models import Product
 from .serializers import OrderCreateSerializer, OrderListSerializer
 
+@extend_schema(tags=['Pesanan'])
 class OrderListCreateView(generics.ListCreateAPIView):
     permission_classes = (IsAuthenticated,)
 
