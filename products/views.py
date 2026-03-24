@@ -1,9 +1,10 @@
 import requests
-from rest_framework import viewsets
+from rest_framework import viewsets, filters
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.conf import settings
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers
 from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema, extend_schema_view, inline_serializer, OpenApiParameter, OpenApiTypes
 from .models import Category, Product
@@ -57,7 +58,33 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     list=extend_schema(
         tags=['Katalog'],
         summary='Melihat daftar produk bouquet',
-        description='Endpoint publik untuk menampilkan daftar produk bouquet yang tersedia di katalog.',
+        description='Endpoint publik untuk menampilkan daftar produk bouquet yang tersedia di katalog. Mendukung pagination default, filter kategori, pencarian nama/deskripsi, serta pengurutan hasil.',
+        parameters=[
+            OpenApiParameter(
+                name='page',
+                description='Nomor halaman hasil pagination. Ukuran halaman mengikuti konfigurasi backend.',
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+            OpenApiParameter(
+                name='category',
+                description='Filter produk berdasarkan ID kategori.',
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+            OpenApiParameter(
+                name='search',
+                description='Cari produk berdasarkan nama atau deskripsi.',
+                required=False,
+                type=OpenApiTypes.STR,
+            ),
+            OpenApiParameter(
+                name='ordering',
+                description='Urutkan hasil dengan `price`, `-price`, `created_at`, atau `-created_at`.',
+                required=False,
+                type=OpenApiTypes.STR,
+            ),
+        ],
         responses={200: ProductSerializer},
     ),
     retrieve=extend_schema(
@@ -71,11 +98,18 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     """Menyediakan endpoint baca untuk katalog produk bouquet.
 
     Viewset ini menampilkan daftar produk beserta detail penting seperti
-    kategori, deskripsi, harga, dan tautan gambar produk.
+    kategori, deskripsi, harga, dan tautan gambar produk. Endpoint list
+    juga mendukung pagination, filtering, pencarian, dan ordering.
     """
     queryset = Product.objects.select_related('category').all() # Optimasi query untuk mencegah masalah N+1.
     serializer_class = ProductSerializer
     permission_classes = (AllowAny,)
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['category']
+    search_fields = ['name', 'description']
+    ordering_fields = ['price', 'created_at']
+    ordering = ['-created_at']
 
 @extend_schema(
     tags=['Rekomendasi ML'],

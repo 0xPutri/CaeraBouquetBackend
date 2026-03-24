@@ -1,10 +1,11 @@
-from rest_framework import generics, status
+from rest_framework import generics, status, filters
 from rest_framework import serializers
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema, extend_schema_view, inline_serializer
+from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, extend_schema_view, inline_serializer
 from .models import Order, Transaction
 from products.models import Product
 from .serializers import OrderCreateSerializer, OrderListSerializer
@@ -21,7 +22,33 @@ order_create_success_response = inline_serializer(
     get=extend_schema(
         tags=['Pesanan'],
         summary='Melihat riwayat pesanan pengguna',
-        description='Endpoint ini menampilkan daftar pesanan milik pengguna yang sedang login, diurutkan dari yang terbaru.',
+        description='Endpoint ini menampilkan daftar pesanan milik pengguna yang sedang login, diurutkan dari yang terbaru. Mendukung pagination default, filter status, pencarian nama produk, dan pengurutan hasil.',
+        parameters=[
+            OpenApiParameter(
+                name='page',
+                description='Nomor halaman hasil pagination. Ukuran halaman mengikuti konfigurasi backend.',
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+            OpenApiParameter(
+                name='status',
+                description='Filter pesanan berdasarkan status, misalnya `created`, `paid`, atau `cancelled`.',
+                required=False,
+                type=OpenApiTypes.STR,
+            ),
+            OpenApiParameter(
+                name='search',
+                description='Cari pesanan berdasarkan nama produk pada transaksi.',
+                required=False,
+                type=OpenApiTypes.STR,
+            ),
+            OpenApiParameter(
+                name='ordering',
+                description='Urutkan hasil dengan `created_at`, `-created_at`, `total_price`, atau `-total_price`.',
+                required=False,
+                type=OpenApiTypes.STR,
+            ),
+        ],
         responses={
             200: OrderListSerializer,
             401: OpenApiResponse(description='Autentikasi diperlukan untuk melihat riwayat pesanan.'),
@@ -95,6 +122,13 @@ class OrderListCreateView(generics.ListCreateAPIView):
     """
 
     permission_classes = (IsAuthenticated,)
+    queryset = Order.objects.none()
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status']
+    search_fields = ['transactions__product__name']
+    ordering_fields = ['created_at', 'total_price']
+    ordering = ['-created_at']
 
     def get_serializer_class(self):
         """Memilih serializer sesuai metode HTTP yang digunakan.
@@ -112,7 +146,9 @@ class OrderListCreateView(generics.ListCreateAPIView):
         Returns:
             QuerySet: Query pesanan yang sudah diurutkan dari terbaru.
         """
-        return Order.objects.filter(user=self.request.user).prefetch_related('transactions__product').order_by('-created_at')
+        if getattr(self, 'swagger_fake_view', False):
+            return Order.objects.none()
+        return Order.objects.filter(user=self.request.user).prefetch_related('transactions__product')
     
     @transaction.atomic # Memastikan rollback database jika terjadi galat di tengah proses.
     def create(self, request, *args, **kwargs):
