@@ -1,0 +1,40 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+<!-- Disable Sidebar & Topbar -->
+{% block sidebar %}{% endblock %}
+{% block topbar %}{% endblock %}
+{% block content_header %}{% endblock %}
+{% block messages %}{% endblock %}
+
+<!-- Main Content -->
+{% block content %}
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl border border-gray-100 text-center">
+        <!-- Header Section -->
+        <div>
+            <!-- Success Icon -->
+            <div class="flex justify-center">
+                <div class="h-16 w-16 bg-rose-100 rounded-full flex items-center justify-center">
+                    <svg class="w-8 h-8 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Title -->
+            <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">Berhasil Keluar</h2>
+
+            <!-- Subtitle -->
+            <p class="mt-4 text-center text-sm text-gray-600">Terima kasih telah menggunakan sistem manajemen CaeraBouquet hari ini.</p>
+        </div>
+
+        <!-- Action Button -->
+        <div class="mt-8 flex justify-center">
+            <a href="{% url 'admin:index' %}" class="w-full inline-flex justify-center py-3 px-4 border border-transparent shadow-sm text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 transition-colors">
+                Masuk Kembali
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

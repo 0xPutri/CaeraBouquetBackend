@@ -1,0 +1,33 @@
+{% load i18n %}
+<!-- Filter Dropdown Container -->
+<div style="position:relative;display:inline-block;">
+    <details>
+        <!-- Filter Button (Summary) -->
+        <summary style="display:inline-flex;align-items:center;gap:0.375rem;padding:0.4rem 0.75rem;border:1px solid #e5e7eb;border-radius:0.5rem;font-size:0.8rem;font-weight:600;color:#374151;background:#f9fafb;cursor:pointer;list-style:none;user-select:none;white-space:nowrap;">
+            <!-- Filter Icon -->
+            <svg style="width:0.85rem;height:0.85rem;color:#6b7280;flex-shrink:0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 010 2H4a1 1 0 01-1-1zm3 6a1 1 0 011-1h10a1 1 0 010 2H7a1 1 0 01-1-1zm4 6a1 1 0 011-1h4a1 1 0 010 2h-4a1 1 0 01-1-1z" />
+            </svg>
+            {{ title }}
+            <!-- Dropdown Arrow -->
+            <svg style="width:0.75rem;height:0.75rem;color:#9ca3af;margin-left:0.125rem;flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+        </summary>
+
+        <!-- Filter Options Dropdown -->
+        <div style="position:absolute;top:calc(100% + 0.375rem);left:0;background:#fff;border:1px solid #e5e7eb;border-radius:0.625rem;box-shadow:0 10px 15px -3px rgba(0,0,0,.08),0 4px 6px -2px rgba(0,0,0,.04);min-width:170px;z-index:200;overflow:hidden;padding:0.25rem 0;">
+            {% for choice in choices %}
+            <a href="{{ choice.query_string|iriencode }}" style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0.875rem;font-size:0.8125rem;text-decoration:none;color:{% if choice.selected %}#e11d48{% else %}#374151{% endif %};background:{% if choice.selected %}#fff1f2{% else %}transparent{% endif %};font-weight:{% if choice.selected %}600{% else %}400{% endif %};" onmouseover="this.style.background='{% if choice.selected %}#ffe4e6{% else %}#f9fafb{% endif %}'" onmouseout="this.style.background='{% if choice.selected %}#fff1f2{% else %}transparent{% endif %}'">
+                <!-- Selected Indicator -->
+                {% if choice.selected %}
+                <span style="display:inline-block;width:0.4rem;height:0.4rem;border-radius:50%;background:#e11d48;flex-shrink:0;"></span>
+                {% else %}
+                <span style="display:inline-block;width:0.4rem;height:0.4rem;flex-shrink:0;"></span>
+                {% endif %}
+                {{ choice.display }}
+            </a>
+            {% endfor %}
+        </div>
+    </details>
+</div>

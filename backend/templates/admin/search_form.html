@@ -1,0 +1,36 @@
+{% load i18n %}
+{% if cl.search_fields %}
+<div style="display:flex;align-items:center;gap:0.5rem;width:100%;">
+    <!-- Form Pencarian -->
+    <form id="changelist-search" method="get" style="display:flex;align-items:center;gap:0.5rem;width:100%;">
+        <!-- Parameter Tersembunyi (kecuali 'q') -->
+        {% for pair in cl.params.items %}
+            {% if pair.0 != 'q' %}
+                <input type="hidden" name="{{ pair.0 }}" value="{{ pair.1 }}">
+            {% endif %}
+        {% endfor %}
+
+        <!-- Input Pencarian dengan Ikon -->
+        <div style="position:relative;flex:1;">
+            <div style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);pointer-events:none;">
+                <svg style="width:1rem;height:1rem;color:#9ca3af;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+                </svg>
+            </div>
+            <input type="search" id="searchbar" name="q" value="{{ cl.query }}" placeholder="{% blocktranslate with search_fields=cl.search_fields_translation %}Cari berdasarkan {{ search_fields }}…{% endblocktranslate %}" style="width:100%;border:1px solid #e5e7eb;border-radius:0.5rem;padding:0.5rem 0.75rem 0.5rem 2.25rem;font-size:0.875rem;color:#111827;font-family:'Inter',sans-serif;background:#f9fafb;transition:all 0.15s;outline:none;" onfocus="this.style.borderColor='#e11d48';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(225,29,72,.1)'" onblur="this.style.borderColor='#e5e7eb';this.style.background='#f9fafb';this.style.boxShadow='none'">
+        </div>
+
+        <!-- Tombol Cari -->
+        <button type="submit" style="padding:0.5rem 1rem;background:#e11d48;color:#fff;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:background 0.2s;white-space:nowrap;" onmouseover="this.style.background='#be123c'" onmouseout="this.style.background='#e11d48'">
+            Cari
+        </button>
+
+        <!-- Tombol Hapus (jika ada query) -->
+        {% if cl.query %}
+            <a href="?{% for pair in cl.params.items %}{% if pair.0 != 'q' %}{{ pair.0 }}={{ pair.1 }}&{% endif %}{% endfor %}" style="padding:0.5rem 0.75rem;color:#6b7280;border:1px solid #e5e7eb;border-radius:0.5rem;font-size:0.875rem;text-decoration:none;font-weight:500;background:#fff;transition:all 0.15s;white-space:nowrap;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='#fff'">
+                &times; Hapus
+            </a>
+        {% endif %}
+    </form>
+</div>
+{% endif %}

@@ -47,7 +47,7 @@ class TransactionInline(admin.TabularInline):
 
     form = TransactionInlineForm
     model = Transaction
-    extra = 0
+    extra = 1
     readonly_fields = ('price',)
 
 @admin.register(Order)

@@ -1,0 +1,71 @@
+{% load i18n %}
+
+<!-- Fieldset Rows -->
+{% for line in fieldset %}
+<div class="cb-form-row{% if line.errors %} cb-form-row--error{% endif %}{% if not line.has_visible_field %}" style="display:none{% endif %}">
+    {% for field in line %}
+    {% if not field.is_hidden %}
+    <div class="cb-field-group">
+
+        <!-- Checkbox Field -->
+        {% if field.is_checkbox %}
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+            {% if field.is_readonly %}
+                {{ field.contents }}
+            {% else %}
+                {{ field.field }}
+            {% endif %}
+            <label for="{{ field.field.id_for_label }}" style="font-size:0.875rem;font-weight:500;color:#374151;margin:0;display:inline;cursor:pointer;">
+                {{ field.label }}
+                {% if not field.field.field.required %}
+                    <span style="font-size:0.7rem;color:#9ca3af;font-weight:400;">(opsional)</span>
+                {% endif %}
+            </label>
+        </div>
+
+        <!-- Standard Field -->
+        {% else %}
+        <label for="{{ field.field.id_for_label }}" style="display:block;font-size:0.8125rem;font-weight:600;color:#374151;margin-bottom:0.375rem;">
+            {{ field.field.label }}
+            {% if field.field.field.required %}
+                <span style="color:#e11d48;margin-left:2px;">*</span>
+            {% endif %}
+        </label>
+
+        <!-- Readonly Field -->
+        {% if field.is_readonly %}
+        <div style="font-size:0.875rem;color:#374151;padding:0.5625rem 0.875rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:0.5rem;min-height:2.25rem;">
+            {{ field.contents }}
+        </div>
+
+        <!-- Editable Field -->
+        {% else %}
+        <div style="width:100%;max-width:640px;">
+            {{ field.field }}
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <!-- Help Text -->
+        {% if field.field.help_text %}
+        <p style="margin:0.3rem 0 0;font-size:0.75rem;color:#9ca3af;line-height:1.4;">
+            {{ field.field.help_text|safe }}
+        </p>
+        {% endif %}
+
+        <!-- Field Errors -->
+        {% if field.errors %}
+        <ul style="list-style:none;padding:0;margin:0.25rem 0 0;">
+            {% for error in field.errors %}
+            <li style="font-size:0.8rem;color:#dc2626;font-weight:500;">⚠ {{ error }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+    </div>
+    {% else %}
+    {{ field.field }}
+    {% endif %}
+    {% endfor %}
+</div>
+{% endfor %}

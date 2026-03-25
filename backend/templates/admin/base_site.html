@@ -1,0 +1,17 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+<!-- Page Title -->
+{% block title %}
+{{ title }} | {{ site_title|default:'CaeraBouquet Admin' }}
+{% endblock %}
+
+<!-- Site Branding -->
+{% block branding %}
+<h1 id="site-name">
+    <a href="{% url 'admin:index' %}">{{ site_header|default:'Manajemen CaeraBouquet' }}</a>
+</h1>
+{% endblock %}
+
+<!-- Global Navigation -->
+{% block nav-global %}{% endblock %}

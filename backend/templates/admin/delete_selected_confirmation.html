@@ -1,0 +1,79 @@
+{% extends "admin/base_site.html" %}
+{% load i18n l10n admin_urls static %}
+
+{% block content %}
+<div class="bg-white shadow-sm ring-1 ring-gray-900/5 sm:rounded-xl p-8 max-w-3xl mx-auto mt-8 border-t-4 border-red-500">
+    <div class="flex items-start">
+        <div class="flex-shrink-0">
+            <!-- Warning Icon -->
+            <svg class="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+        </div>
+        <div class="ml-4 flex-1">
+            <h3 class="text-2xl leading-6 font-bold text-gray-900 mb-2">
+                Hapus beberapa objek sekaligus
+            </h3>
+
+            {% if perms_lacking %}
+                <div class="bg-red-50 p-4 border border-red-200 rounded-md mb-6 mt-4">
+                    <p class="text-sm text-red-700 font-medium">Berdasarkan pilihan Anda, berikut adalah objek yang sedianya akan dihapus beserta objek terkaitnya. Tapi akun Anda tidak memiliki izin untuk menghapus jenis objek ini:</p>
+                    <ul class="list-disc pl-5 mt-2 text-sm text-red-600 space-y-1">
+                        {% for obj in perms_lacking %}
+                            <li>{{ obj }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% elif protected %}
+                <div class="bg-yellow-50 p-4 border border-yellow-200 rounded-md mb-6 mt-4">
+                    <p class="text-sm text-yellow-800 font-medium">Berdasarkan pilihan Anda, berikut adalah objek yang sedianya akan dihapus. Tapi penghapusan tidak dapat diteruskan karena terikat/dilindungi oleh objek lain:</p>
+                    <ul class="list-disc pl-5 mt-2 text-sm text-yellow-700 space-y-1">
+                        {% for obj in protected %}
+                            <li>{{ obj }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% else %}
+                <p class="text-sm text-gray-600 mb-6 mt-2">
+                    Apakah Anda yakin ingin menghapus <strong>semua objek</strong> yang Anda pilih? Semua objek terkait di bawah ini juga akan ikut terhapus:
+                </p>
+
+                <div class="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-100 max-h-96 overflow-y-auto">
+                    <!-- Ringkasan -->
+                    <div class="mb-4 pb-4 border-b border-gray-200">
+                        <h4 class="font-semibold text-gray-800 text-sm mb-2">Ringkasan Objek</h4>
+                        {% include "admin/includes/object_delete_summary.html" %}
+                    </div>
+
+                    <!-- Detail Objek -->
+                    <h4 class="font-semibold text-gray-800 text-sm mb-2">Detail Objek Utama</h4>
+                    {% for deletable_object in deletable_objects %}
+                        <ul class="text-sm text-gray-600 pl-4 list-disc space-y-1 mb-2">
+                            {{ deletable_object|unordered_list }}
+                        </ul>
+                    {% endfor %}
+                </div>
+
+                <form action="" method="post" id="delete_selected_form">{% csrf_token %}
+                    <div>
+                        {% for obj in queryset %}
+                            <input type="hidden" name="{{ action_checkbox_name }}" value="{{ obj.pk|unlocalize }}">
+                        {% endfor %}
+                        <input type="hidden" name="action" value="delete_selected">
+                        <input type="hidden" name="post" value="yes">
+
+                        <div class="mt-5 flex flex-wrap gap-4">
+                            <button type="submit" class="inline-flex items-center justify-center px-6 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 cursor-pointer transition-colors w-full sm:w-auto">
+                                Ya, Saya Yakin Menghapus
+                            </button>
+                            <a href="#" onclick="window.history.back(); return false;" class="inline-flex items-center justify-center px-6 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 cursor-pointer transition-colors w-full sm:w-auto">
+                                Tidak, Bawa Saya Kembali
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
