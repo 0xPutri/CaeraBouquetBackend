@@ -10,6 +10,7 @@ from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
 from .models import Category, Product
 from .serializers import CategorySerializer, ProductSerializer
 from urllib.parse import urlparse
+from requests.exceptions import JSONDecodeError
 
 recommendation_item_response = inline_serializer(
     name='RecommendationItemResponse',
@@ -197,6 +198,12 @@ class RecommendationView(APIView):
                 response = session.get(url)
                 response.raise_for_status()
 
+            content_type = response.headers.get("Content-Type", "").lower()
+            if not content_type.startswith("application/json"):
+                raise requests.exceptions.RequestException(
+                    f"Invalid ML Service content type: {content_type}"
+                )
+
             ml_data = response.json().get('data', [])
             for item in ml_data:
                 recommendations.append({
@@ -204,6 +211,12 @@ class RecommendationView(APIView):
                     "name": item.get("product_type", "Rekomendasi Produk").title(), 
                     "price": item.get("price", 0)
                 })
+        except JSONDecodeError as e:
+            print(f"[ERROR] ML Service mengembalikan JSON tidak valid: {e}")
+            return Response(
+                {"error": "Respons ML Service tidak valid."},
+                status=503
+            )
         except requests.exceptions.RequestException as e:
             print(f"[ERROR] ML Service gagal diakses: {e}")
             return Response(
