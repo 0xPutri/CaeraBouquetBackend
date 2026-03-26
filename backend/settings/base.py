@@ -2,6 +2,7 @@ import os
 from datetime import timedelta
 from pathlib import Path
 from dotenv import load_dotenv
+from decimal import Decimal
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(os.path.join(BASE_DIR, '.env'))
@@ -10,6 +11,11 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # Machine Learning Service
 ML_SERVICE_BASE_URL = os.environ.get('ML_SERVICE_BASE_URL', 'https://www.ml.caera.my.id')
+
+# Order guardrails
+MAX_ORDER_QUANTITY = int(os.environ.get('MAX_ORDER_QUANTITY', 50))
+MAX_ORDER_TOTAL_PRICE = Decimal(os.environ.get('MAX_ORDER_TOTAL_PRICE', '50000000.00'))
+ORDER_CREATE_RATE_LIMIT = os.environ.get('ORDER_CREATE_RATE_LIMIT', '10/hour')
 
 # Application definition
 INSTALLED_APPS = [
@@ -79,6 +85,9 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10, # 10 Data per halaman
+    'DEFAULT_THROTTLE_RATES': {
+        'order_create': ORDER_CREATE_RATE_LIMIT,
+    },
 }
 
 # Simple JWT Configuration

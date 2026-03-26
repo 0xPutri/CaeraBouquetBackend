@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.conf import settings
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
 from .models import Order, Transaction
 from products.models import Product
@@ -11,7 +12,10 @@ class OrderCreateSerializer(serializers.Serializer):
     """
 
     product_id = serializers.IntegerField()
-    quantity = serializers.IntegerField(min_value=1)
+    quantity = serializers.IntegerField(
+        min_value=1,
+        max_value=settings.MAX_ORDER_QUANTITY,
+    )
     delivery_address = serializers.CharField(required=False, allow_blank=True)
     notes = serializers.CharField(required=False, allow_blank=True)
 

@@ -2,11 +2,13 @@ from rest_framework import generics, status, filters
 from rest_framework import serializers
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.conf import settings
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, extend_schema_view, inline_serializer
 from .models import Order, Transaction
+from .throttles import OrderCreateUserRateThrottle
 from products.models import Product
 from .serializers import OrderCreateSerializer, OrderListSerializer
 
@@ -130,6 +132,12 @@ class OrderListCreateView(generics.ListCreateAPIView):
     ordering_fields = ['created_at', 'total_price']
     ordering = ['-created_at']
 
+    def get_throttles(self):
+        """Menerapkan throttling khusus pada endpoint pembuatan pesanan."""
+        if self.request.method == 'POST':
+            return [OrderCreateUserRateThrottle()]
+        return super().get_throttles()
+
     def get_serializer_class(self):
         """Memilih serializer sesuai metode HTTP yang digunakan.
 
@@ -179,6 +187,11 @@ class OrderListCreateView(generics.ListCreateAPIView):
             )
         
         total_price = product.price * quantity
+        if total_price > settings.MAX_ORDER_TOTAL_PRICE:
+            return Response(
+                {"detail": "Total harga pesanan melebihi batas maksimum yang diizinkan."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         order = Order.objects.create(
             user=request.user,
