@@ -15,7 +15,8 @@ from requests.exceptions import JSONDecodeError
 recommendation_item_response = inline_serializer(
     name='RecommendationItemResponse',
     fields={
-        'product_id': serializers.CharField(help_text='ID produk hasil rekomendasi.'),
+        'id': serializers.IntegerField(help_text='ID internal produk pada backend.', required=False, allow_null=True),
+        'product_id': serializers.CharField(help_text='ID produk eksternal dari layanan machine learning (contoh: B001).'),
         'name': serializers.CharField(help_text='Nama produk rekomendasi.'),
         'price': serializers.FloatField(help_text='Harga produk rekomendasi.'),
     },
@@ -117,7 +118,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     summary='Mendapatkan rekomendasi produk',
     description='Endpoint ini meneruskan permintaan ke layanan machine learning. Gunakan salah satu parameter: `product_id` atau `event_type`.',
     parameters=[
-        OpenApiParameter(name='product_id', description='ID produk acuan untuk mencari rekomendasi serupa. Contoh: `B004`.', required=False, type=OpenApiTypes.STR),
+        OpenApiParameter(name='product_id', description='ID produk acuan. Dapat berupa ID internal backend (contoh: `12`) atau ID eksternal ML (contoh: `B004`).', required=False, type=OpenApiTypes.STR),
         OpenApiParameter(name='event_type', description='Jenis acara untuk menghasilkan rekomendasi. Contoh: `birthday` atau `wedding`.', required=False, type=OpenApiTypes.STR),
         OpenApiParameter(name='top_n', description='Jumlah maksimum rekomendasi yang ingin dikembalikan. Nilai bawaan: `5`.', required=False, type=OpenApiTypes.INT),
     ],
@@ -134,8 +135,8 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
             'Contoh Respons Rekomendasi Berhasil',
             value={
                 'recommendations': [
-                    {'product_id': 'B004', 'name': 'Birthday Bouquet', 'price': 125000},
-                    {'product_id': 'B010', 'name': 'Rose Premium Bouquet', 'price': 175000},
+                    {'id': 12, 'product_id': 'B004', 'name': 'Birthday Bouquet', 'price': 125000},
+                    {'id': 24, 'product_id': 'B010', 'name': 'Rose Premium Bouquet', 'price': 175000},
                 ],
             },
             response_only=True,
@@ -179,7 +180,16 @@ class RecommendationView(APIView):
 
         try:
             if product_id:
-                url = f"{ml_base_url}/api/recommendations/product/{product_id}/?top_n={top_n}"
+                ml_product_id = product_id
+                if product_id.isdigit():
+                    source_product = Product.objects.filter(id=int(product_id)).only('external_product_id').first()
+                    if not source_product or not source_product.external_product_id:
+                        return Response(
+                            {"error": "Produk acuan tidak memiliki external_product_id untuk rekomendasi."},
+                            status=400
+                        )
+                    ml_product_id = source_product.external_product_id
+                url = f"{ml_base_url}/api/recommendations/product/{ml_product_id}/?top_n={top_n}"
             elif event_type:
                 url = f"{ml_base_url}/api/recommendations/event/{event_type}/?top_n={top_n}"
             else:
@@ -205,11 +215,25 @@ class RecommendationView(APIView):
                 )
 
             ml_data = response.json().get('data', [])
+            ml_product_ids = [item.get("product_id") for item in ml_data if item.get("product_id")]
+            products_by_external_id = {
+                product.external_product_id: product
+                for product in Product.objects.filter(external_product_id__in=ml_product_ids).only(
+                    "id",
+                    "external_product_id",
+                    "name",
+                    "price",
+                )
+            }
+
             for item in ml_data:
+                ml_product_id = item.get("product_id")
+                backend_product = products_by_external_id.get(ml_product_id)
                 recommendations.append({
-                    "product_id": item.get("product_id"), 
-                    "name": item.get("product_type", "Rekomendasi Produk").title(), 
-                    "price": item.get("price", 0)
+                    "id": backend_product.id if backend_product else None,
+                    "product_id": ml_product_id,
+                    "name": backend_product.name if backend_product else item.get("product_type", "Rekomendasi Produk").title(),
+                    "price": float(backend_product.price) if backend_product else item.get("price", 0),
                 })
         except JSONDecodeError as e:
             print(f"[ERROR] ML Service mengembalikan JSON tidak valid: {e}")

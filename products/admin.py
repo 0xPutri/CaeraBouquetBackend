@@ -31,6 +31,7 @@ class ProductAdminForm(forms.ModelForm):
         fields = '__all__'
         help_texts = {
             'category': 'Pilih kategori produk.',
+            'external_product_id': 'ID produk eksternal untuk sinkronisasi dengan layanan ML (contoh: B001).',
             'name': 'Nama produk yang tampil di katalog.',
             'description': 'Deskripsi singkat produk.',
             'price': 'Harga jual produk.',
@@ -59,6 +60,6 @@ class ProductAdmin(admin.ModelAdmin):
     """
 
     form = ProductAdminForm
-    list_display = ('name', 'category', 'price', 'stock', 'created_at')
+    list_display = ('external_product_id', 'name', 'category', 'price', 'stock', 'created_at')
     list_filter = ('category',)
-    search_fields = ('name', 'category__name')
+    search_fields = ('external_product_id', 'name', 'category__name')
