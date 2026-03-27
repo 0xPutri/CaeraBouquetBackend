@@ -108,7 +108,7 @@ order_create_success_response = inline_serializer(
             OpenApiExample(
                 'Contoh Respons Stok Tidak Cukup',
                 value={
-                    'detail': 'Stok tidak mencukupi. Sisa stok: 1',
+                    'detail': 'Stok tidak mencukupi',
                 },
                 response_only=True,
                 status_codes=['400'],
@@ -182,7 +182,7 @@ class OrderListCreateView(generics.ListCreateAPIView):
 
         if product.stock < quantity:
             return Response(
-                {"detail": f"Stok tidak mencukupi. Sisa stok: {product.stock}"},
+                {"detail": "Stok tidak mencukupi"},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
