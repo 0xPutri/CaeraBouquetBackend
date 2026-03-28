@@ -1,9 +1,10 @@
+import logging
 from rest_framework import generics, status, filters
 from rest_framework import serializers
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
-from django.db import transaction
+from django.db import transaction, DatabaseError
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, extend_schema_view, inline_serializer
@@ -11,6 +12,9 @@ from .models import Order, Transaction
 from .throttles import OrderCreateUserRateThrottle
 from products.models import Product
 from .serializers import OrderCreateSerializer, OrderListSerializer
+
+logger = logging.getLogger('orders')
+security_logger = logging.getLogger('caera.security')
 
 order_create_success_response = inline_serializer(
     name='OrderCreateSuccessResponse',
@@ -133,7 +137,11 @@ class OrderListCreateView(generics.ListCreateAPIView):
     ordering = ['-created_at']
 
     def get_throttles(self):
-        """Menerapkan throttling khusus pada endpoint pembuatan pesanan."""
+        """Menerapkan pembatasan request khusus untuk pembuatan pesanan.
+
+        Returns:
+            list: Daftar throttle yang sesuai dengan metode request aktif.
+        """
         if self.request.method == 'POST':
             return [OrderCreateUserRateThrottle()]
         return super().get_throttles()
@@ -156,6 +164,10 @@ class OrderListCreateView(generics.ListCreateAPIView):
         """
         if getattr(self, 'swagger_fake_view', False):
             return Order.objects.none()
+        logger.info(
+            "Riwayat pesanan pengguna diminta.",
+            extra={"user_id": str(self.request.user.id)}
+        )
         return Order.objects.filter(user=self.request.user).prefetch_related('transactions__product')
     
     @transaction.atomic # Memastikan rollback database jika terjadi galat di tengah proses.
@@ -171,44 +183,73 @@ class OrderListCreateView(generics.ListCreateAPIView):
             Response: Respons sukses pembuatan pesanan atau pesan validasi.
         """
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            security_logger.warning(
+                "Validasi pembuatan pesanan gagal.",
+                extra={"user_id": str(request.user.id), "errors": serializer.errors}
+            )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         data = serializer.validated_data
-        product = get_object_or_404(
-            Product.objects.select_for_update(),
-            id=data['product_id']
-        )
-        quantity = data['quantity']
+        try:
+            with transaction.atomic():
+                product = get_object_or_404(
+                    Product.objects.select_for_update(),
+                    id=data['product_id']
+                )
+                quantity = data['quantity']
 
-        if product.stock < quantity:
-            return Response(
-                {"detail": "Stok tidak mencukupi"},
-                status=status.HTTP_400_BAD_REQUEST
+                if product.stock < quantity:
+                    security_logger.warning(
+                        "Pembuatan pesanan ditolak karena stok tidak mencukupi.",
+                        extra={"user_id": str(request.user.id), "product_id": product.id, "requested_quantity": quantity}
+                    )
+                    return Response(
+                        {"detail": "Stok tidak mencukupi"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                total_price = product.price * quantity
+                if total_price > settings.MAX_ORDER_TOTAL_PRICE:
+                    security_logger.warning(
+                        "Pembuatan pesanan ditolak karena melebihi batas total harga.",
+                        extra={"user_id": str(request.user.id), "product_id": product.id, "total_price": str(total_price)}
+                    )
+                    return Response(
+                        {"detail": "Total harga pesanan melebihi batas maksimum yang diizinkan."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                order = Order.objects.create(
+                    user=request.user,
+                    total_price=total_price,
+                    delivery_address=data.get('delivery_address', ''),
+                    notes=data.get('notes', '')
+                )
+
+                Transaction.objects.create(
+                    order=order,
+                    product=product,
+                    quantity=quantity,
+                    price=product.price
+                )
+
+                product.stock -= quantity
+                product.save(update_fields=['stock'])
+        except DatabaseError:
+            security_logger.exception(
+                "Pembuatan pesanan gagal karena gangguan database.",
+                extra={"user_id": str(request.user.id), "product_id": data.get('product_id')}
             )
-        
-        total_price = product.price * quantity
-        if total_price > settings.MAX_ORDER_TOTAL_PRICE:
             return Response(
-                {"detail": "Total harga pesanan melebihi batas maksimum yang diizinkan."},
-                status=status.HTTP_400_BAD_REQUEST
+                {"detail": "Terjadi gangguan pada sistem. Silakan coba lagi."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
 
-        order = Order.objects.create(
-            user=request.user,
-            total_price=total_price,
-            delivery_address=data.get('delivery_address', ''),
-            notes=data.get('notes', '')
+        logger.info(
+            "Pesanan berhasil dibuat.",
+            extra={"user_id": str(request.user.id), "order_id": order.id, "product_id": product.id, "quantity": quantity}
         )
-
-        Transaction.objects.create(
-            order=order,
-            product=product,
-            quantity=quantity,
-            price=product.price
-        )
-
-        product.stock -= quantity
-        product.save(update_fields=['stock'])
 
         return Response(
             {

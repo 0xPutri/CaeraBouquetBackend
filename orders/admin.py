@@ -1,7 +1,9 @@
+import logging
 from django import forms
 from django.contrib import admin
 from .models import Order, Transaction
 
+audit_logger = logging.getLogger('caera.security')
 
 class TransactionInlineForm(forms.ModelForm):
     """Menyediakan bantuan isian untuk detail item transaksi.
@@ -63,3 +65,33 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter = ('status', 'created_at')
     search_fields = ('user__email', 'user__name')
     inlines = [TransactionInline]
+
+    def save_model(self, request, obj, form, change):
+        """Menyimpan pesanan dan mencatat aktivitas admin.
+
+        Args:
+            request (HttpRequest): Request admin yang sedang diproses.
+            obj (Order): Objek pesanan yang akan disimpan.
+            form (ModelForm): Form admin yang memuat data pesanan.
+            change (bool): Penanda apakah data sedang diubah.
+        """
+        super().save_model(request, obj, form, change)
+        action = 'perubahan' if change else 'penambahan'
+        audit_logger.warning(
+            "Admin melakukan %s pesanan.",
+            action,
+            extra={"admin_user": str(request.user.id), "order_id": obj.id, "status": obj.status}
+        )
+
+    def delete_model(self, request, obj):
+        """Menghapus pesanan dan mencatat aktivitas admin.
+
+        Args:
+            request (HttpRequest): Request admin yang sedang diproses.
+            obj (Order): Objek pesanan yang akan dihapus.
+        """
+        audit_logger.warning(
+            "Admin menghapus pesanan.",
+            extra={"admin_user": str(request.user.id), "order_id": obj.id, "status": obj.status}
+        )
+        super().delete_model(request, obj)

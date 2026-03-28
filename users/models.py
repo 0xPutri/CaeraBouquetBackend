@@ -1,6 +1,9 @@
 import uuid
+import logging
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+
+logger = logging.getLogger('users')
 
 class UserManager(BaseUserManager):
     """Mengelola proses pembuatan akun pengguna.
@@ -83,7 +86,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     def send_verification_email(self):
         """Mensimulasikan proses pengiriman email verifikasi.
 
-        Method ini masih berupa mockup sederhana untuk menampilkan alur
+        Method ini masih berupa mockup sederhana untuk menggambarkan alur
         pengiriman email verifikasi pada tahap pengembangan.
         """
-        print(f"[MOCKUP] Mengirim email verifikasi ke {self.email}")
+        logger.info(
+            "Mockup email verifikasi berhasil dicatat.",
+            extra={"user_id": str(self.id), "email": self.email}
+        )

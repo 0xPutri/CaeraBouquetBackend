@@ -1,7 +1,9 @@
+import logging
 from django import forms
 from django.contrib import admin
 from .models import Category, Product
 
+audit_logger = logging.getLogger('caera.security')
 
 class CategoryAdminForm(forms.ModelForm):
     """Menyediakan bantuan isian untuk pengelolaan kategori produk.
@@ -51,6 +53,36 @@ class CategoryAdmin(admin.ModelAdmin):
     list_display = ('name', 'created_at')
     search_fields = ('name',)
 
+    def save_model(self, request, obj, form, change):
+        """Menyimpan kategori dan mencatat aktivitas admin.
+
+        Args:
+            request (HttpRequest): Request admin yang sedang diproses.
+            obj (Category): Objek kategori yang akan disimpan.
+            form (ModelForm): Form admin yang memuat data kategori.
+            change (bool): Penanda apakah data sedang diubah.
+        """
+        super().save_model(request, obj, form, change)
+        action = 'perubahan' if change else 'penambahan'
+        audit_logger.warning(
+            "Admin melakukan %s kategori.",
+            action,
+            extra={"admin_user": str(request.user.id), "category_id": obj.id, "category_name": obj.name}
+        )
+
+    def delete_model(self, request, obj):
+        """Menghapus kategori dan mencatat aktivitas admin.
+
+        Args:
+            request (HttpRequest): Request admin yang sedang diproses.
+            obj (Category): Objek kategori yang akan dihapus.
+        """
+        audit_logger.warning(
+            "Admin menghapus kategori.",
+            extra={"admin_user": str(request.user.id), "category_id": obj.id, "category_name": obj.name}
+        )
+        super().delete_model(request, obj)
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     """Mengatur tampilan produk pada Django Admin.
@@ -63,3 +95,43 @@ class ProductAdmin(admin.ModelAdmin):
     list_display = ('external_product_id', 'name', 'category', 'price', 'stock', 'created_at')
     list_filter = ('category',)
     search_fields = ('external_product_id', 'name', 'category__name')
+
+    def save_model(self, request, obj, form, change):
+        """Menyimpan produk dan mencatat aktivitas admin.
+
+        Args:
+            request (HttpRequest): Request admin yang sedang diproses.
+            obj (Product): Objek produk yang akan disimpan.
+            form (ModelForm): Form admin yang memuat data produk.
+            change (bool): Penanda apakah data sedang diubah.
+        """
+        super().save_model(request, obj, form, change)
+        action = 'perubahan' if change else 'penambahan'
+        audit_logger.warning(
+            "Admin melakukan %s produk.",
+            action,
+            extra={
+                "admin_user": str(request.user.id),
+                "product_id": obj.id,
+                "external_product_id": obj.external_product_id,
+                "product_name": obj.name
+            }
+        )
+
+    def delete_model(self, request, obj):
+        """Menghapus produk dan mencatat aktivitas admin.
+
+        Args:
+            request (HttpRequest): Request admin yang sedang diproses.
+            obj (Product): Objek produk yang akan dihapus.
+        """
+        audit_logger.warning(
+            "Admin menghapus produk.",
+            extra={
+                "admin_user": str(request.user.id),
+                "product_id": obj.id,
+                "external_product_id": obj.external_product_id,
+                "product_name": obj.name
+            }
+        )
+        super().delete_model(request, obj)

@@ -1,3 +1,4 @@
+import logging
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -5,6 +6,9 @@ from rest_framework import serializers
 from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema, inline_serializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .serializers import RegisterSerializer, UserProfileSerializer
+
+logger = logging.getLogger('users')
+security_logger = logging.getLogger('caera.security')
 
 register_success_response = inline_serializer(
     name='RegisterSuccessResponse',
@@ -98,8 +102,18 @@ class RegisterView(generics.CreateAPIView):
             Response: Respons HTTP 201 setelah pengguna berhasil dibuat.
         """
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            security_logger.warning(
+                "Validasi registrasi pengguna gagal.",
+                extra={"ip": request.META.get("REMOTE_ADDR"), "errors": serializer.errors}
+            )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
         self.perform_create(serializer)
+        logger.info(
+            "Pengguna berhasil didaftarkan.",
+            extra={"user_id": str(serializer.instance.id), "email": serializer.instance.email}
+        )
 
         return Response(
             {"message": "User registered successfully"},
@@ -130,6 +144,10 @@ class UserProfileView(generics.RetrieveAPIView):
         Returns:
             User: Pengguna yang sedang login pada request saat ini.
         """
+        logger.info(
+            "Profil pengguna berhasil diakses.",
+            extra={"user_id": str(self.request.user.id)}
+        )
         return self.request.user
 
 
@@ -169,11 +187,36 @@ class UserProfileView(generics.RetrieveAPIView):
     ],
 )
 class LoginView(TokenObtainPairView):
-    """Menambahkan dokumentasi Swagger untuk endpoint login JWT.
+    """Menambahkan dokumentasi Swagger dan logging untuk endpoint login JWT.
 
-    View ini tetap menggunakan perilaku bawaan Simple JWT dan hanya
-    memperjelas schema dokumentasi pada Swagger.
+    View ini tetap menggunakan mekanisme bawaan Simple JWT, lalu
+    menambahkan pencatatan log untuk aktivitas login pengguna.
     """
+
+    def post(self, request, *args, **kwargs):
+        """Memproses login pengguna dan mencatat hasil autentikasi.
+
+        Args:
+            request (Request): Objek request yang memuat email dan kata sandi.
+            *args: Argumen tambahan dari kelas induk.
+            **kwargs: Argumen keyword tambahan dari kelas induk.
+
+        Returns:
+            Response: Respons token JWT atau pesan kegagalan autentikasi.
+        """
+        response = super().post(request, *args, **kwargs)
+        email = request.data.get('email', '')
+        if response.status_code == status.HTTP_200_OK:
+            logger.info(
+                "Login pengguna berhasil.",
+                extra={"email": email, "ip": request.META.get("REMOTE_ADDR")}
+            )
+        else:
+            security_logger.warning(
+                "Login pengguna gagal.",
+                extra={"email": email, "ip": request.META.get("REMOTE_ADDR"), "status_code": response.status_code}
+            )
+        return response
 
 
 @extend_schema(
@@ -207,8 +250,32 @@ class LoginView(TokenObtainPairView):
     ],
 )
 class TokenRefreshDocsView(TokenRefreshView):
-    """Menambahkan dokumentasi Swagger untuk endpoint refresh token.
+    """Menambahkan dokumentasi Swagger dan logging untuk endpoint refresh token.
 
-    View ini tidak mengubah mekanisme refresh token dan hanya digunakan
-    agar dokumentasi endpoint tampil lebih jelas dalam Bahasa Indonesia.
+    View ini mempertahankan alur refresh token bawaan dan hanya
+    menambahkan dokumentasi serta pencatatan log aktivitas.
     """
+
+    def post(self, request, *args, **kwargs):
+        """Memproses pembaruan access token dan mencatat hasilnya.
+
+        Args:
+            request (Request): Objek request yang memuat refresh token.
+            *args: Argumen tambahan dari kelas induk.
+            **kwargs: Argumen keyword tambahan dari kelas induk.
+
+        Returns:
+            Response: Respons access token baru atau pesan kegagalan refresh.
+        """
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == status.HTTP_200_OK:
+            logger.info(
+                "Pembaruan access token berhasil.",
+                extra={"ip": request.META.get("REMOTE_ADDR")}
+            )
+        else:
+            security_logger.warning(
+                "Pembaruan access token gagal.",
+                extra={"ip": request.META.get("REMOTE_ADDR"), "status_code": response.status_code}
+            )
+        return response

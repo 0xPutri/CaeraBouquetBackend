@@ -6,8 +6,11 @@ from decimal import Decimal
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(os.path.join(BASE_DIR, '.env'))
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
 
 SECRET_KEY = os.environ.get('SECRET_KEY')
+LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
 
 # Machine Learning Service
 ML_SERVICE_BASE_URL = os.environ.get('ML_SERVICE_BASE_URL', 'https://www.ml.caera.my.id')
@@ -173,5 +176,84 @@ SPECTACULAR_SETTINGS = {
         'displayOperationId': True,
         'displayRequestDuration': True,
         'docExpansion': 'list',
+    },
+}
+
+# Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '%(asctime)s | %(levelname)s | %(name)s | %(message)s'
+        },
+        'verbose': {
+            'format': '%(asctime)s | %(levelname)s | %(name)s | %(module)s:%(lineno)d | %(message)s'
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'standard',
+            'level': LOG_LEVEL,
+        },
+        'app_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOG_DIR, 'app.log'),
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 5,
+            'formatter': 'verbose',
+            'level': LOG_LEVEL,
+        },
+        'security_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOG_DIR, 'security.log'),
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 10,
+            'formatter': 'verbose',
+            'level': 'WARNING',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'app_file'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console', 'app_file', 'security_file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['console', 'security_file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'caera': {
+            'handlers': ['console', 'app_file'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'caera.security': {
+            'handlers': ['console', 'security_file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'users': {
+            'handlers': ['console', 'app_file', 'security_file'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'orders': {
+            'handlers': ['console', 'app_file', 'security_file'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'products': {
+            'handlers': ['console', 'app_file', 'security_file'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
     },
 }

@@ -1,3 +1,4 @@
+import logging
 import requests
 from rest_framework import viewsets, filters
 from rest_framework.permissions import AllowAny
@@ -11,6 +12,9 @@ from .models import Category, Product
 from .serializers import CategorySerializer, ProductSerializer
 from urllib.parse import urlparse
 from requests.exceptions import JSONDecodeError
+
+logger = logging.getLogger('products')
+security_logger = logging.getLogger('caera.security')
 
 recommendation_item_response = inline_serializer(
     name='RecommendationItemResponse',
@@ -154,7 +158,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
 class RecommendationView(APIView):
     """Mengambil rekomendasi produk dari layanan machine learning.
 
-    View ini meneruskan parameter permintaan ke service ML, lalu
+    View ini meneruskan parameter permintaan ke layanan ML, lalu
     menyesuaikan hasilnya agar konsisten dengan format respons backend.
     """
 
@@ -184,6 +188,10 @@ class RecommendationView(APIView):
                 if product_id.isdigit():
                     source_product = Product.objects.filter(id=int(product_id)).only('external_product_id').first()
                     if not source_product or not source_product.external_product_id:
+                        security_logger.warning(
+                            "Permintaan rekomendasi ditolak karena external_product_id tidak tersedia.",
+                            extra={"product_id": product_id, "ip": request.META.get("REMOTE_ADDR")}
+                        )
                         return Response(
                             {"error": "Produk acuan tidak memiliki external_product_id untuk rekomendasi."},
                             status=400
@@ -211,7 +219,7 @@ class RecommendationView(APIView):
             content_type = response.headers.get("Content-Type", "").lower()
             if not content_type.startswith("application/json"):
                 raise requests.exceptions.RequestException(
-                    f"Invalid ML Service content type: {content_type}"
+                    f"Tipe konten dari ML Service tidak valid: {content_type}"
                 )
 
             ml_data = response.json().get('data', [])
@@ -235,14 +243,29 @@ class RecommendationView(APIView):
                     "name": backend_product.name if backend_product else item.get("product_type", "Rekomendasi Produk").title(),
                     "price": float(backend_product.price) if backend_product else item.get("price", 0),
                 })
-        except JSONDecodeError as e:
-            print(f"[ERROR] ML Service mengembalikan JSON tidak valid: {e}")
+            logger.info(
+                "Permintaan rekomendasi berhasil diproses.",
+                extra={
+                    "ip": request.META.get("REMOTE_ADDR"),
+                    "reference_product": product_id,
+                    "event_type": event_type,
+                    "result_count": len(recommendations)
+                }
+            )
+        except JSONDecodeError:
+            security_logger.exception(
+                "ML Service mengembalikan JSON yang tidak valid.",
+                extra={"ip": request.META.get("REMOTE_ADDR")}
+            )
             return Response(
                 {"error": "Respons ML Service tidak valid."},
                 status=503
             )
         except requests.exceptions.RequestException as e:
-            print(f"[ERROR] ML Service gagal diakses: {e}")
+            security_logger.exception(
+                "Permintaan ke ML Service gagal diproses.",
+                extra={"ip": request.META.get("REMOTE_ADDR"), "error": str(e)}
+            )
             return Response(
                 {"error": "ML Service sedang tidak tersedia."},
                 status=503

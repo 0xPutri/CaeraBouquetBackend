@@ -31,3 +31,6 @@ Thumbs.db
 
 # AI Agent Context (private instructions)
 docs/context/ai/
+
+# Management commands (generated scripts)
+**/management/
