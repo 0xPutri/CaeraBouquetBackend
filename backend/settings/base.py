@@ -143,12 +143,34 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Konfigurasi Swagger UI
 SPECTACULAR_SETTINGS = {
     'TITLE': 'CaeraBouquet Backend API',
-    'DESCRIPTION': 'Dokumentasi REST API resmi untuk backend Caera Bouquet.\n\nDokumentasi ini memuat endpoint autentikasi, profil pengguna, katalog produk, pemesanan, dan rekomendasi produk berbasis machine learning. Seluruh skema disusun untuk memudahkan integrasi frontend dan pengujian endpoint secara konsisten.',
+    'DESCRIPTION': (
+        'Dokumentasi REST API untuk layanan backend **Caera Bouquet**, '
+        'platform pemesanan bouquet berbasis web yang mendukung pengelolaan '
+        'akun pengguna, katalog produk, transaksi pesanan, serta integrasi '
+        'rekomendasi berbasis machine learning.\n\n'
+        'Spesifikasi ini disusun sebagai acuan integrasi antara backend, frontend, '
+        'dan kebutuhan pengujian API. Setiap endpoint dirancang untuk mendukung '
+        'alur bisnis utama Caera Bouquet, mulai dari penayangan katalog, proses '
+        'autentikasi, pembuatan pesanan, hingga penyajian rekomendasi produk.\n\n'
+        '**Ruang lingkup dokumentasi:**\n'
+        '- autentikasi pengguna dan pengelolaan token akses\n'
+        '- profil pengguna yang sedang terautentikasi\n'
+        '- katalog kategori dan produk bouquet\n'
+        '- pembuatan serta riwayat pesanan pelanggan\n'
+        '- integrasi layanan rekomendasi machine learning\n\n'
+        '**Catatan penggunaan:**\n'
+        '- seluruh endpoint API tersedia di bawah prefix `/api/`\n'
+        '- autentikasi menggunakan skema `Bearer Token`\n'
+        '- format pertukaran data menggunakan `JSON`\n'
+        '- beberapa endpoint memerlukan hak akses pengguna yang sudah login'
+    ),
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
     'CONTACT': {
         'name': 'Tim Pengembang Caera Bouquet',
+        'email': 'dev@caera.com',
+        'url': 'https://www.api.caera.com',
     },
     'TAGS': [
         {
