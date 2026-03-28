@@ -71,14 +71,12 @@ Gunakan Swagger UI pada endpoint berikut setelah server berjalan:
 - `users/` berisi autentikasi, profil pengguna, dan model user kustom.
 - `products/` berisi kategori, katalog produk, dan integrasi rekomendasi.
 - `orders/` berisi pembuatan pesanan, riwayat pesanan, dan transaksi.
-- `docs/context/ai/` berisi dokumen konteks pengembangan dan spesifikasi sistem.
 
 ## Catatan
 
 - Backend ini dirancang untuk mendukung aplikasi web pemesanan bouquet milik **Caera Bouquet**.
 - Proses pembayaran belum ditangani langsung oleh sistem.
 - Integrasi rekomendasi bergantung pada layanan machine learning yang berjalan secara terpisah.
-- Untuk dokumentasi kebutuhan sistem, lihat `docs/context/ai/CaeraBouquetBackendSRS.md`.
 
 ## Lisensi
 
