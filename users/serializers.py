@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 User = get_user_model()
 
@@ -68,3 +69,34 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'name', 'email')
+
+
+class VerifiedEmailTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Memastikan hanya pengguna dengan email terverifikasi yang dapat login.
+
+    Serializer ini memperluas serializer JWT bawaan dengan validasi
+    tambahan pada status verifikasi email pengguna.
+    """
+
+    default_error_messages = {
+        'email_belum_terverifikasi': 'Email Anda belum terverifikasi.',
+    }
+
+    def validate(self, attrs):
+        """Memvalidasi kredensial dan status verifikasi email pengguna.
+
+        Args:
+            attrs (dict): Data login yang berisi email dan kata sandi.
+
+        Returns:
+            dict: Payload token JWT jika autentikasi berhasil.
+
+        Raises:
+            AuthenticationFailed: Jika email pengguna belum terverifikasi.
+        """
+        data = super().validate(attrs)
+
+        if not self.user.is_email_verified:
+            self.fail('email_belum_terverifikasi')
+
+        return data

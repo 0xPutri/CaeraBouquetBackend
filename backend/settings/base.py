@@ -19,6 +19,10 @@ ML_SERVICE_BASE_URL = os.environ.get('ML_SERVICE_BASE_URL', 'https://www.ml.caer
 MAX_ORDER_QUANTITY = int(os.environ.get('MAX_ORDER_QUANTITY', 50))
 MAX_ORDER_TOTAL_PRICE = Decimal(os.environ.get('MAX_ORDER_TOTAL_PRICE', '50000000.00'))
 ORDER_CREATE_RATE_LIMIT = os.environ.get('ORDER_CREATE_RATE_LIMIT', '10/hour')
+EMAIL_VERIFICATION_BASE_URL = os.environ.get(
+    'EMAIL_VERIFICATION_BASE_URL',
+    'http://127.0.0.1:8000/api/auth/verify-email/'
+)
 
 # Request/upload size guardrails
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', 1048576))
@@ -139,6 +143,15 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.example.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'noreply@example.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
 # Konfigurasi Swagger UI
 SPECTACULAR_SETTINGS = {

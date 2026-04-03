@@ -1,6 +1,8 @@
 import uuid
 import logging
+from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.core.mail import send_mail
 from django.db import models
 
 logger = logging.getLogger('users')
@@ -84,12 +86,40 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.email
     
     def send_verification_email(self):
-        """Mensimulasikan proses pengiriman email verifikasi.
+        """Mengirim email verifikasi ke alamat email pengguna.
 
-        Method ini masih berupa mockup sederhana untuk menggambarkan alur
-        pengiriman email verifikasi pada tahap pengembangan.
+        Method ini memastikan token verifikasi tersedia, lalu mengirimkan
+        tautan verifikasi email menggunakan konfigurasi SMTP aplikasi.
         """
+        if not self.email_verification_token:
+            self.email_verification_token = uuid.uuid4().hex
+            self.save(update_fields=['email_verification_token'])
+
+        verification_url = (
+            f"{settings.EMAIL_VERIFICATION_BASE_URL}"
+            f"?token={self.email_verification_token}"
+        )
+        subject = "Verifikasi Email Akun Caera Bouquet"
+        message = (
+            f"Halo {self.name},\n\n"
+            "Terima kasih telah mendaftar di Caera Bouquet.\n"
+            "Untuk melanjutkan proses pendaftaran, silakan lakukan verifikasi email Anda melalui tautan berikut:\n\n"
+            f"{verification_url}\n\n"
+            "Tautan ini bersifat pribadi dan hanya berlaku untuk Anda.\n\n"
+            "Jika Anda tidak merasa melakukan pendaftaran akun, silakan abaikan email ini.\n\n"
+            "Salam hangat,\n"
+            "Tim Caera Bouquet"
+        )
+
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[self.email],
+            fail_silently=False,
+        )
+
         logger.info(
-            "Mockup email verifikasi berhasil dicatat.",
+            "Email verifikasi berhasil dikirim.",
             extra={"user_id": str(self.id), "email": self.email}
         )

@@ -30,7 +30,7 @@ Thumbs.db
 .coverage
 
 # AI Agent Context (private instructions)
-docs/context/ai/
+ai_context/**
 
 # Management commands (generated scripts)
 **/management/

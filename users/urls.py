@@ -1,9 +1,10 @@
 from django.urls import path
-from .views import LoginView, RegisterView, TokenRefreshDocsView, UserProfileView
+from .views import LoginView, RegisterView, TokenRefreshDocsView, UserProfileView, VerifyEmailView
 
 urlpatterns = [
     # Auth Endpoints
     path('auth/register/', RegisterView.as_view(), name='register'),
+    path('auth/verify-email/', VerifyEmailView.as_view(), name='verify_email'),
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/token/refresh/', TokenRefreshDocsView.as_view(), name='token_refresh'),
     

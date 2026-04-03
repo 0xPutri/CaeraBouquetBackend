@@ -3,9 +3,12 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import serializers
-from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema, inline_serializer
+from django.contrib.auth import get_user_model
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, inline_serializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from .serializers import RegisterSerializer, UserProfileSerializer
+from .serializers import RegisterSerializer, UserProfileSerializer, VerifiedEmailTokenObtainPairSerializer
+
+User = get_user_model()
 
 logger = logging.getLogger('users')
 security_logger = logging.getLogger('caera.security')
@@ -44,6 +47,13 @@ token_refresh_response = inline_serializer(
     name='TokenRefreshResponse',
     fields={
         'access': serializers.CharField(help_text='Access token baru hasil pembaruan refresh token.'),
+    },
+)
+
+verify_email_response = inline_serializer(
+    name='VerifyEmailResponse',
+    fields={
+        'message': serializers.CharField(help_text='Pesan hasil verifikasi email.'),
     },
 )
 
@@ -110,13 +120,25 @@ class RegisterView(generics.CreateAPIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         self.perform_create(serializer)
+        try:
+            serializer.instance.send_verification_email()
+        except Exception:
+            security_logger.exception(
+                "Pengiriman email verifikasi gagal.",
+                extra={"user_id": str(serializer.instance.id), "email": serializer.instance.email}
+            )
+            return Response(
+                {"detail": "Akun berhasil dibuat, tetapi email verifikasi gagal dikirim."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
         logger.info(
             "Pengguna berhasil didaftarkan.",
             extra={"user_id": str(serializer.instance.id), "email": serializer.instance.email}
         )
 
         return Response(
-            {"message": "User registered successfully"},
+            {"message": "Registrasi berhasil. Silakan cek email untuk verifikasi akun."},
             status=status.HTTP_201_CREATED
         )
 
@@ -192,6 +214,7 @@ class LoginView(TokenObtainPairView):
     View ini tetap menggunakan mekanisme bawaan Simple JWT, lalu
     menambahkan pencatatan log untuk aktivitas login pengguna.
     """
+    serializer_class = VerifiedEmailTokenObtainPairSerializer
 
     def post(self, request, *args, **kwargs):
         """Memproses login pengguna dan mencatat hasil autentikasi.
@@ -217,6 +240,114 @@ class LoginView(TokenObtainPairView):
                 extra={"email": email, "ip": request.META.get("REMOTE_ADDR"), "status_code": response.status_code}
             )
         return response
+
+
+@extend_schema(
+    tags=['Autentikasi'],
+    summary='Memverifikasi email pengguna',
+    description='Endpoint ini memverifikasi email pengguna berdasarkan token yang dikirim melalui email registrasi.',
+    parameters=[
+        OpenApiParameter(
+            name='token',
+            description='Token verifikasi email yang dikirim melalui email pengguna.',
+            required=True,
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+        ),
+    ],
+    responses={
+        200: OpenApiResponse(
+            response=verify_email_response,
+            description='Email pengguna berhasil diverifikasi.',
+        ),
+        400: OpenApiResponse(description='Token verifikasi tidak valid atau sudah digunakan.'),
+    },
+    examples=[
+        OpenApiExample(
+            'Contoh URL Verifikasi Email',
+            value='/api/auth/verify-email/?token=9a3a1d9f6e4d4c67b5933c70ef4d24d1',
+            parameter_only=('token', 'query'),
+        ),
+        OpenApiExample(
+            'Contoh Respons Verifikasi Berhasil',
+            value={
+                'message': 'Email berhasil diverifikasi.',
+            },
+            response_only=True,
+            status_codes=['200'],
+        ),
+    ],
+)
+class VerifyEmailView(generics.GenericAPIView):
+    """Memverifikasi email pengguna menggunakan token verifikasi.
+
+    View ini menerima token verifikasi yang dikirim melalui email, lalu
+    menandai akun pengguna sebagai terverifikasi jika token valid.
+    """
+
+    permission_classes = (AllowAny,)
+    serializer_class = serializers.Serializer
+
+    def _verify_email(self, request):
+        """Memproses verifikasi email berdasarkan token pengguna.
+
+        Args:
+            request (Request): Objek request yang memuat token verifikasi.
+
+        Returns:
+            Response: Respons hasil verifikasi email pengguna.
+        """
+        token = request.query_params.get('token', '').strip()
+        if not token:
+            security_logger.warning(
+                "Verifikasi email gagal karena token tidak diberikan.",
+                extra={"ip": request.META.get("REMOTE_ADDR")}
+            )
+            return Response(
+                {"detail": "Token verifikasi wajib diisi."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = User.objects.filter(
+            email_verification_token=token,
+            is_email_verified=False,
+        ).first()
+
+        if not user:
+            security_logger.warning(
+                "Verifikasi email gagal karena token tidak valid.",
+                extra={"ip": request.META.get("REMOTE_ADDR")}
+            )
+            return Response(
+                {"detail": "Token verifikasi tidak valid atau sudah digunakan."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.is_email_verified = True
+        user.email_verification_token = None
+        user.save(update_fields=['is_email_verified', 'email_verification_token'])
+
+        logger.info(
+            "Email pengguna berhasil diverifikasi.",
+            extra={"user_id": str(user.id), "email": user.email}
+        )
+        return Response(
+            {"message": "Email berhasil diverifikasi."},
+            status=status.HTTP_200_OK
+        )
+
+    def get(self, request, *args, **kwargs):
+        """Memproses verifikasi email dari tautan yang dibuka pengguna.
+
+        Args:
+            request (Request): Objek request yang memuat token verifikasi.
+            *args: Argumen tambahan dari kelas induk.
+            **kwargs: Argumen keyword tambahan dari kelas induk.
+
+        Returns:
+            Response: Respons hasil verifikasi email pengguna.
+        """
+        return self._verify_email(request)
 
 
 @extend_schema(

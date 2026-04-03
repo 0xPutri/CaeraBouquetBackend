@@ -9,9 +9,12 @@ https://docs.djangoproject.com/en/6.0/howto/deployment/wsgi/
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings.prod')
 
-from django.core.wsgi import get_wsgi_application
-application = get_wsgi_application()
+from backend.wsgi import application
