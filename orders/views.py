@@ -3,14 +3,13 @@ from rest_framework import generics, status, filters
 from rest_framework import serializers
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import transaction, DatabaseError
-from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, extend_schema_view, inline_serializer
-from .models import Order, Transaction
+from .models import Order
+from .services import create_order_with_single_transaction
 from .throttles import OrderCreateUserRateThrottle
-from products.models import Product
 from .serializers import OrderCreateSerializer, OrderListSerializer
 
 logger = logging.getLogger('orders')
@@ -170,7 +169,7 @@ class OrderListCreateView(generics.ListCreateAPIView):
         )
         return Order.objects.filter(user=self.request.user).prefetch_related('transactions__product')
     
-    @transaction.atomic # Memastikan rollback database jika terjadi galat di tengah proses.
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         """Membuat pesanan baru sekaligus memperbarui stok produk.
 
@@ -193,49 +192,22 @@ class OrderListCreateView(generics.ListCreateAPIView):
         data = serializer.validated_data
         try:
             with transaction.atomic():
-                product = get_object_or_404(
-                    Product.objects.select_for_update(),
-                    id=data['product_id']
-                )
                 quantity = data['quantity']
-
-                if product.stock < quantity:
-                    security_logger.warning(
-                        "Pembuatan pesanan ditolak karena stok tidak mencukupi.",
-                        extra={"user_id": str(request.user.id), "product_id": product.id, "requested_quantity": quantity}
-                    )
-                    return Response(
-                        {"detail": "Stok tidak mencukupi"},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                
-                total_price = product.price * quantity
-                if total_price > settings.MAX_ORDER_TOTAL_PRICE:
-                    security_logger.warning(
-                        "Pembuatan pesanan ditolak karena melebihi batas total harga.",
-                        extra={"user_id": str(request.user.id), "product_id": product.id, "total_price": str(total_price)}
-                    )
-                    return Response(
-                        {"detail": "Total harga pesanan melebihi batas maksimum yang diizinkan."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-
-                order = Order.objects.create(
+                order, product = create_order_with_single_transaction(
                     user=request.user,
-                    total_price=total_price,
-                    delivery_address=data.get('delivery_address', ''),
-                    notes=data.get('notes', '')
-                )
-
-                Transaction.objects.create(
-                    order=order,
-                    product=product,
+                    product_id=data['product_id'],
                     quantity=quantity,
-                    price=product.price
+                    delivery_address=data.get('delivery_address', ''),
+                    notes=data.get('notes', ''),
                 )
-
-                product.stock -= quantity
-                product.save(update_fields=['stock'])
+        except ValidationError as exc:
+            error_message = exc.messages[0] if exc.messages else str(exc)
+            if data.get('product_id'):
+                security_logger.warning(
+                    "Pembuatan pesanan ditolak karena validasi bisnis gagal.",
+                    extra={"user_id": str(request.user.id), "product_id": data['product_id'], "requested_quantity": data.get('quantity')}
+                )
+            return Response({"detail": error_message}, status=status.HTTP_400_BAD_REQUEST)
         except DatabaseError:
             security_logger.exception(
                 "Pembuatan pesanan gagal karena gangguan database.",
