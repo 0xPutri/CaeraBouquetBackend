@@ -3,6 +3,8 @@ from datetime import timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 from decimal import Decimal
+from django.templatetags.static import static
+from django.urls import reverse_lazy
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(os.path.join(BASE_DIR, '.env'))
@@ -13,7 +15,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
 
 # Machine Learning Service
-ML_SERVICE_BASE_URL = os.environ.get('ML_SERVICE_BASE_URL', 'https://www.ml.caera.my.id')
+ML_SERVICE_BASE_URL = os.environ.get('ML_SERVICE_BASE_URL', 'https://www.ml.caerabouquet.shop')
 
 # Order guardrails
 MAX_ORDER_QUANTITY = int(os.environ.get('MAX_ORDER_QUANTITY', 50))
@@ -30,6 +32,8 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('FILE_UPLOAD_MAX_MEMORY_SIZE', 
 
 # Application definition
 INSTALLED_APPS = [
+    'unfold',
+    'unfold.contrib.filters',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -136,6 +140,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = 'media/'
@@ -292,5 +299,86 @@ LOGGING = {
             'level': LOG_LEVEL,
             'propagate': False,
         },
+    },
+}
+
+# Theme Configuration
+UNFOLD = {
+    "SITE_TITLE": "Caera Bouquet Admin",
+    "SITE_HEADER": "Caera Bouquet",
+    "SITE_SYMBOL": "local_florist",
+    "THEME": "light",
+    "STYLES": [
+        lambda request: static("css/admin_custom.css"),
+    ],
+    "COLORS": {
+        "primary": {
+            "50": "#fdf2f8",
+            "100": "#fce7f3",
+            "200": "#fbcfe8",
+            "300": "#f9a8d4",
+            "400": "#f472b6",
+            "500": "#ec4899",
+            "600": "#db2777",
+            "700": "#be185d",
+            "800": "#9d174d",
+            "900": "#831843",
+            "950": "#500724",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "Manajemen Pesanan",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Daftar Pesanan",
+                        "icon": "receipt_long",
+                        "link": reverse_lazy("admin:orders_order_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Katalog Produk",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Produk Bouquet",
+                        "icon": "local_mall",
+                        "link": reverse_lazy("admin:products_product_changelist"),
+                    },
+                    {
+                        "title": "Kategori",
+                        "icon": "category",
+                        "link": reverse_lazy("admin:products_category_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Pengguna Aplikasi",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Data Pelanggan",
+                        "icon": "group",
+                        "link": reverse_lazy("admin:users_user_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Keamanan & Akses",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Grup Otorisasi",
+                        "icon": "admin_panel_settings",
+                        "link": reverse_lazy("admin:users_customgroup_changelist"),
+                    },
+                ],
+            },
+        ],
     },
 }

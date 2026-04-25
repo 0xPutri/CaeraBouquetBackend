@@ -12,8 +12,8 @@ DATABASES = { # SQLite
 }
 
 CORS_ALLOWED_ORIGINS = [
-    "https://www.caera.my.id",
-    "https://caera.my.id",
+    "https://www.caerabouquet.shop",
+    "https://caerabouquet.shop",
 ]
 
 SECURE_BROWSER_XSS_FILTER = True

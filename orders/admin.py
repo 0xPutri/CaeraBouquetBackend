@@ -1,6 +1,7 @@
 import logging
 from django import forms
 from django.contrib import admin
+from unfold.admin import ModelAdmin, TabularInline
 from django.db import transaction
 from .models import Order, Transaction
 from products.models import Product
@@ -98,7 +99,7 @@ class TransactionInlineFormSet(forms.BaseInlineFormSet):
                 )
                 raise forms.ValidationError("Stok tidak mencukupi untuk transaksi admin yang dimasukkan.")
 
-class TransactionInline(admin.TabularInline):
+class TransactionInline(TabularInline):
     """Menampilkan detail transaksi langsung di halaman pesanan.
 
     Inline ini membantu admin melihat item produk yang terkait dengan
@@ -112,7 +113,7 @@ class TransactionInline(admin.TabularInline):
     readonly_fields = ('price',)
 
 @admin.register(Order)
-class OrderAdmin(admin.ModelAdmin):
+class OrderAdmin(ModelAdmin):
     """Mengatur tampilan data pesanan pada Django Admin.
 
     Konfigurasi ini memudahkan admin memantau status, total harga,

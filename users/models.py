@@ -1,7 +1,7 @@
 import uuid
 import logging
 from django.conf import settings
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin, Group
 from django.core.mail import send_mail
 from django.db import models
 
@@ -60,22 +60,26 @@ class User(AbstractBaseUser, PermissionsMixin):
     informasi verifikasi email untuk kebutuhan autentikasi aplikasi.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    email = models.EmailField(unique=True)
-    name = models.CharField(max_length=255)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, verbose_name="ID Pengguna")
+    email = models.EmailField(unique=True, verbose_name="Alamat Email")
+    name = models.CharField(max_length=255, verbose_name="Nama Lengkap")
 
-    is_active = models.BooleanField(default=True)
-    is_staff = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True, verbose_name="Akun Aktif")
+    is_staff = models.BooleanField(default=False, verbose_name="Akses Staff Admin")
 
-    is_email_verified = models.BooleanField(default=False)
-    email_verification_token = models.CharField(max_length=255, blank=True, null=True)
+    is_email_verified = models.BooleanField(default=False, verbose_name="Email Terverifikasi")
+    email_verification_token = models.CharField(max_length=255, blank=True, null=True, verbose_name="Token Verifikasi")
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Tanggal Mendaftar")
 
     objects = UserManager()
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['name']
+
+    class Meta:
+        verbose_name = "Data Pengguna"
+        verbose_name_plural = "Data Pengguna"
 
     def __str__(self):
         """Mengembalikan representasi teks dari pengguna.
@@ -123,3 +127,16 @@ class User(AbstractBaseUser, PermissionsMixin):
             "Email verifikasi berhasil dikirim.",
             extra={"user_id": str(self.id), "email": self.email}
         )
+
+class CustomGroup(Group):
+    """
+    Representasi grup otorisasi untuk pengaturan izin akses.
+
+    Model proxy ini digunakan untuk mengelola peran pengguna dalam sistem
+    agar penamaan dan pengelompokannya lebih mudah dipahami oleh administrator.
+    """
+    class Meta:
+        proxy = True
+        verbose_name = "Grup Otorisasi"
+        verbose_name_plural = "Daftar Grup Otorisasi"
+        app_label = 'users'

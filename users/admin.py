@@ -1,7 +1,10 @@
 from django import forms
 from django.contrib import admin
-from .models import User
+from django.contrib.auth.models import Group
+from unfold.admin import ModelAdmin
+from .models import User, CustomGroup
 
+admin.site.unregister(Group)
 
 class UserAdminForm(forms.ModelForm):
     """Menyediakan bantuan isian untuk form pengguna di Django Admin.
@@ -26,7 +29,7 @@ class UserAdminForm(forms.ModelForm):
         }
 
 @admin.register(User)
-class UserAdmin(admin.ModelAdmin):
+class UserAdmin(ModelAdmin):
     """Mengatur tampilan data pengguna pada Django Admin.
 
     Konfigurasi ini memudahkan admin melihat identitas, status akses,
@@ -38,3 +41,16 @@ class UserAdmin(admin.ModelAdmin):
     search_fields = ('email', 'name')
     list_filter = ('is_staff', 'is_email_verified', 'is_active')
     readonly_fields = ('password',)
+    filter_horizontal = ('groups', 'user_permissions')
+
+@admin.register(CustomGroup)
+class CustomGroupAdmin(ModelAdmin):
+    """
+    Mengatur pengelompokan hak akses dan peran pengguna.
+
+    Kelas ini memungkinkan administrator untuk mendefinisikan grup otorisasi agar
+    pemberian izin akses fitur aplikasi menjadi lebih terstruktur.
+    """
+    list_display = ('name',)
+    search_fields = ('name',)
+    filter_horizontal = ('permissions',)

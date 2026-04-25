@@ -38,10 +38,14 @@ class Transaction(models.Model):
     item, serta harga yang dicatat saat transaksi dibuat.
     """
 
-    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='transactions')
-    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
-    quantity = models.PositiveIntegerField(default=1)
-    price = models.DecimalField(max_digits=12, decimal_places=2)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='transactions', verbose_name="Nomor Pesanan")
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, verbose_name="Nama Produk")
+    quantity = models.PositiveIntegerField(default=1, verbose_name="Jumlah (Qty)")
+    price = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Harga Satuan")
+
+    class Meta:
+        verbose_name = "Detail Transaksi"
+        verbose_name_plural = "Detail Transaksi"
 
     def save(self, *args, **kwargs):
         """Menyimpan transaksi dan mengisi harga dari produk bila perlu.

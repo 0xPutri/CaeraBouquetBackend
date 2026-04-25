@@ -1,0 +1,72 @@
+/**
+ * @file admin_custom.css
+ * @description Lembar gaya khusus untuk penyesuaian antarmuka admin Django Unfold.
+ *              Berfokus pada pemeliharaan integritas tata letak komponen
+ *              filter_horizontal guna mencegah overflow pada kontainer utama.
+ * @project CaeraBouquet
+ */
+
+/* Wrapper Utama */
+.selector {
+    width: 100% !important;
+    max-width: 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+    box-sizing: border-box !important;
+}
+
+/* Panel Selektor */
+.selector .selector-available,
+.selector .selector-chosen {
+    flex: 1 1 0 !important;
+    min-width: 0 !important; /* Cegah Overflow Flexbox */
+    max-width: calc(50% - 2rem) !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+/* Tombol Pemisah */
+.selector .selector-chooser {
+    flex: 0 0 auto !important;
+    align-self: center !important;
+}
+
+/* Kotak Pilihan */
+.selector select {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    white-space: normal !important; /* Bungkus Teks Panjang */
+}
+
+/* Input Pencarian */
+.selector .selector-filter input {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Kontainer Baris Form */
+.form-row .field-groups,
+.form-row .field-user_permissions {
+    overflow: hidden !important;
+    max-width: 100% !important;
+}
+
+/* Pembungkus Widget Terkait */
+.related-widget-wrapper {
+    overflow: hidden !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Batas Kolom Form */
+.field-box,
+.form-multiline {
+    max-width: 100% !important;
+    overflow: hidden !important;
+}

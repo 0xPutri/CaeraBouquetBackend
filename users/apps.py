@@ -8,3 +8,4 @@ class UsersConfig(AppConfig):
     """
 
     name = 'users'
+    verbose_name = 'Pengguna Aplikasi'

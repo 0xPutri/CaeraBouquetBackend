@@ -8,3 +8,4 @@ class ProductsConfig(AppConfig):
     """
 
     name = 'products'
+    verbose_name = 'Katalog Produk'

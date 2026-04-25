@@ -8,3 +8,4 @@ class OrdersConfig(AppConfig):
     """
 
     name = 'orders'
+    verbose_name = 'Manajemen Pesanan'

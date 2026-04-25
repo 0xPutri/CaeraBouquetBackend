@@ -77,7 +77,7 @@ verify_email_response = inline_serializer(
         OpenApiExample(
             'Contoh Request Registrasi',
             value={
-                'email': 'hannanime12@caera.my.id',
+                'email': 'hannanime12@caerabouquet.shop',
                 'name': 'Hanna Fernanda',
                 'password': 'Annah123#',
             },
@@ -192,7 +192,7 @@ class UserProfileView(generics.RetrieveAPIView):
         OpenApiExample(
             'Contoh Request Login',
             value={
-                'email': 'hannanime12@caera.my.id',
+                'email': 'hannanime12@caerabouquet.shop',
                 'password': 'Annah123#',
             },
             request_only=True,

@@ -1,6 +1,7 @@
 import logging
 from django import forms
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 from .models import Category, Product
 
 audit_logger = logging.getLogger('caera.security')
@@ -42,7 +43,7 @@ class ProductAdminForm(forms.ModelForm):
         }
 
 @admin.register(Category)
-class CategoryAdmin(admin.ModelAdmin):
+class CategoryAdmin(ModelAdmin):
     """Mengatur tampilan kategori produk pada Django Admin.
 
     Konfigurasi ini menampilkan field penting agar admin lebih mudah
@@ -84,7 +85,7 @@ class CategoryAdmin(admin.ModelAdmin):
         super().delete_model(request, obj)
 
 @admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
+class ProductAdmin(ModelAdmin):
     """Mengatur tampilan produk pada Django Admin.
 
     Konfigurasi ini membantu admin memantau kategori, harga, stok, dan

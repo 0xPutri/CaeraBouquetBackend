@@ -12,7 +12,6 @@ db.sqlite3
 *.log
 staticfiles/
 media/
-templates/
 
 # Environment variables
 .env
@@ -28,6 +27,13 @@ Thumbs.db
 # Testing / cache
 .pytest_cache/
 .coverage
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
 
 # AI Agent Context (private instructions)
 ai_context/**
