@@ -31,10 +31,14 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', 
 FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('FILE_UPLOAD_MAX_MEMORY_SIZE', 1048576))
 
 # CORS Configuration
-CORS_ALLOWED_ORIGINS = os.environ.get(
-    "CORS_ALLOWED_ORIGINS", 
-    "http://localhost:3000,http://127.0.0.1:3000"
-).split(",")
+CORS_ALLOWED_ORIGINS = [
+    origin.strip() 
+    for origin in os.environ.get(
+        "CORS_ALLOWED_ORIGINS", 
+        "http://localhost:3000,http://127.0.0.1:3000"
+    ).split(",") 
+    if origin.strip() and "://" in origin and len(origin.strip().split("://")[-1]) > 0
+]
 CORS_ALLOW_CREDENTIALS = True
 
 # Application definition
