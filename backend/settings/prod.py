@@ -11,10 +11,9 @@ DATABASES = { # SQLite
     }
 }
 
-CORS_ALLOWED_ORIGINS = [
-    "https://www.caerabouquet.shop",
-    "https://caerabouquet.shop",
-]
+# CORS Configuration
+CORS_REPLACE_HTTPS_REFERER = True
+HOST_SCHEME = "https://"
 
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
