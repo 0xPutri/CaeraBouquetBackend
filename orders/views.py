@@ -8,7 +8,7 @@ from django.db import transaction, DatabaseError
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, extend_schema_view, inline_serializer
 from .models import Order
-from .services import create_order_with_single_transaction
+from .services import create_order, create_order_with_single_transaction
 from .throttles import OrderCreateUserRateThrottle
 from .serializers import OrderCreateSerializer, OrderListSerializer
 
@@ -64,8 +64,19 @@ order_create_success_response = inline_serializer(
                 value=[
                     {
                         'order_id': 12,
-                        'product_name': 'Rose Bouquet Deluxe',
-                        'quantity': 2,
+                        'items': [
+                            {
+                                'product_name': 'Rose Bouquet Deluxe',
+                                'quantity': 2,
+                                'price': '150000.00'
+                            },
+                            {
+                                'product_name': 'Lily Bouquet White',
+                                'quantity': 1,
+                                'price': '85000.00'
+                            }
+                        ],
+                        'total_price': '385000.00',
                         'status': 'created',
                         'created_at': '2026-03-24T23:40:00+07:00',
                     }
@@ -78,7 +89,7 @@ order_create_success_response = inline_serializer(
     post=extend_schema(
         tags=['Pesanan'],
         summary='Membuat pesanan baru',
-        description='Endpoint ini membuat pesanan baru untuk satu produk, mencatat transaksi, dan mengurangi stok produk secara atomik.',
+        description='Endpoint ini membuat pesanan baru untuk satu atau lebih produk, mencatat transaksi, dan mengurangi stok produk secara atomik.',
         request=OrderCreateSerializer,
         responses={
             201: OpenApiResponse(
@@ -90,12 +101,23 @@ order_create_success_response = inline_serializer(
         },
         examples=[
             OpenApiExample(
-                'Contoh Request Membuat Pesanan',
+                'Contoh Request Pesanan Banyak Produk',
+                value={
+                    'items': [
+                        {'product_id': 3, 'quantity': 2},
+                        {'product_id': 5, 'quantity': 1}
+                    ],
+                    'delivery_address': 'Jl. Melati No. 8, Jakarta',
+                    'notes': 'Mohon dikirim sebelum pukul 17.00',
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Contoh Request Pesanan Tunggal (Legacy)',
                 value={
                     'product_id': 3,
                     'quantity': 2,
                     'delivery_address': 'Jl. Melati No. 8, Jakarta',
-                    'notes': 'Mohon dikirim sebelum pukul 17.00',
                 },
                 request_only=True,
             ),
@@ -111,7 +133,7 @@ order_create_success_response = inline_serializer(
             OpenApiExample(
                 'Contoh Respons Stok Tidak Cukup',
                 value={
-                    'detail': 'Stok tidak mencukupi',
+                    'detail': 'Stok produk \'Rose Bouquet\' tidak mencukupi',
                 },
                 response_only=True,
                 status_codes=['400'],
@@ -122,8 +144,8 @@ order_create_success_response = inline_serializer(
 class OrderListCreateView(generics.ListCreateAPIView):
     """Menampilkan riwayat pesanan dan membuat pesanan baru.
 
-    View ini menggabungkan kebutuhan daftar pesanan pengguna dengan alur
-    checkout sederhana untuk satu produk dalam satu transaksi.
+    View ini menangani pembuatan pesanan pengguna, mendukung satu 
+    atau banyak produk dalam satu transaksi yang bersifat atomik.
     """
 
     permission_classes = (IsAuthenticated,)
@@ -171,15 +193,19 @@ class OrderListCreateView(generics.ListCreateAPIView):
     
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        """Membuat pesanan baru sekaligus memperbarui stok produk.
+        """
+        Memproses pembuatan pesanan baru bagi pengguna.
+
+        Metode ini menangani validasi data, pembuatan transaksi, hingga
+        pengurangan stok produk secara aman dan menyeluruh.
 
         Args:
-            request (Request): Objek request yang memuat data pesanan.
-            *args: Argumen tambahan dari kelas induk.
-            **kwargs: Argumen keyword tambahan dari kelas induk.
+            request (Request): Objek request yang memuat detail pesanan.
+            *args: Argumen tambahan untuk pemrosesan view.
+            **kwargs: Argumen keyword untuk pemrosesan view.
 
         Returns:
-            Response: Respons sukses pembuatan pesanan atau pesan validasi.
+            Response: Informasi nomor pesanan dan status keberhasilan.
         """
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
@@ -190,28 +216,30 @@ class OrderListCreateView(generics.ListCreateAPIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         data = serializer.validated_data
+
+        items = data.get('items')
+        if not items:
+            items = [{'product_id': data['product_id'], 'quantity': data['quantity']}]
+
         try:
             with transaction.atomic():
-                quantity = data['quantity']
-                order, product = create_order_with_single_transaction(
+                order = create_order(
                     user=request.user,
-                    product_id=data['product_id'],
-                    quantity=quantity,
+                    items=items,
                     delivery_address=data.get('delivery_address', ''),
                     notes=data.get('notes', ''),
                 )
         except ValidationError as exc:
             error_message = exc.messages[0] if exc.messages else str(exc)
-            if data.get('product_id'):
-                security_logger.warning(
-                    "Pembuatan pesanan ditolak karena validasi bisnis gagal.",
-                    extra={"user_id": str(request.user.id), "product_id": data['product_id'], "requested_quantity": data.get('quantity')}
-                )
+            security_logger.warning(
+                "Pembuatan pesanan ditolak karena validasi bisnis gagal.",
+                extra={"user_id": str(request.user.id), "items": items}
+            )
             return Response({"detail": error_message}, status=status.HTTP_400_BAD_REQUEST)
         except DatabaseError:
             security_logger.exception(
                 "Pembuatan pesanan gagal karena gangguan database.",
-                extra={"user_id": str(request.user.id), "product_id": data.get('product_id')}
+                extra={"user_id": str(request.user.id)}
             )
             return Response(
                 {"detail": "Terjadi gangguan pada sistem. Silakan coba lagi."},
@@ -220,7 +248,7 @@ class OrderListCreateView(generics.ListCreateAPIView):
 
         logger.info(
             "Pesanan berhasil dibuat.",
-            extra={"user_id": str(request.user.id), "order_id": order.id, "product_id": product.id, "quantity": quantity}
+            extra={"user_id": str(request.user.id), "order_id": order.id, "item_count": len(items)}
         )
 
         return Response(

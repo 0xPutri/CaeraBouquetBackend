@@ -43,6 +43,86 @@ def snapshot_order_transactions(order):
     )
     return snapshot
 
+def create_order(*, user, items, delivery_address='', notes=''):
+    """Membuat pesanan dengan banyak produk secara atomik.
+
+    Args:
+        user (User): Pengguna yang membuat pesanan.
+        items (list): Daftar dict berisi 'product_id' dan 'quantity'.
+        delivery_address (str): Alamat pengiriman.
+        notes (str): Catatan tambahan.
+
+    Returns:
+        Order: Objek pesanan baru.
+
+    Raises:
+        ValidationError: Jika stok tidak cukup atau aturan bisnis dilanggar.
+    """
+    if not items:
+        raise ValidationError("Pesanan harus memiliki setidaknya satu produk.")
+
+    product_ids = [item['product_id'] for item in items]
+    products_queryset = Product.objects.select_for_update().filter(id__in=product_ids)
+    products_map = {p.id: p for p in products_queryset}
+
+    validated_items = []
+    total_price = Decimal('0.00')
+
+    for item in items:
+        p_id = item['product_id']
+        qty = item['quantity']
+        
+        if p_id not in products_map:
+            raise ValidationError(f"Produk dengan ID {p_id} tidak ditemukan.")
+        
+        product = products_map[p_id]
+        if product.stock < qty:
+            security_logger.warning(
+                "Pembuatan pesanan ditolak karena stok tidak mencukupi.",
+                extra={"user_id": str(user.id), "product_id": p_id, "requested_quantity": qty}
+            )
+            raise ValidationError(f"Stok produk '{product.name}' tidak mencukupi.")
+        
+        item_total = product.price * qty
+        total_price += item_total
+        validated_items.append({
+            'product': product,
+            'quantity': qty,
+            'price': product.price
+        })
+
+    if total_price > settings.MAX_ORDER_TOTAL_PRICE:
+        security_logger.warning(
+            "Pembuatan pesanan ditolak karena melebihi batas total harga.",
+            extra={"user_id": str(user.id), "total_price": str(total_price)}
+        )
+        raise ValidationError("Total harga pesanan melebihi batas maksimum yang diizinkan.")
+
+    with transaction.atomic():
+        order = Order.objects.create(
+            user=user,
+            total_price=total_price,
+            delivery_address=delivery_address,
+            notes=notes,
+        )
+
+        for v_item in validated_items:
+            Transaction.objects.create(
+                order=order,
+                product=v_item['product'],
+                quantity=v_item['quantity'],
+                price=v_item['price'],
+            )
+            
+            v_item['product'].stock -= v_item['quantity']
+            v_item['product'].save(update_fields=['stock'])
+
+    logger.info(
+        "Pesanan multi-item berhasil dibuat.",
+        extra={"user_id": str(user.id), "order_id": order.id, "item_count": len(validated_items)}
+    )
+    return order
+
 def create_order_with_single_transaction(*, user, product_id, quantity, delivery_address='', notes=''):
     """Membuat pesanan satu produk dan memperbarui stok secara atomik.
 
