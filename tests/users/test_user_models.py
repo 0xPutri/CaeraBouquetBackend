@@ -3,18 +3,18 @@ from django.contrib.auth import get_user_model
 
 class UserModelTest(TestCase):
     """
-    Menguji integritas model pengguna pada sistem.
+    Menguji validitas integritas data pada model pengguna.
 
-    Kelas ini memastikan bahwa data pengguna seperti nama dan email
-    tersimpan dengan benar di dalam database.
+    Kelas ini memastikan bahwa informasi identitas inti pengguna mampu
+    tercatat dan tersimpan dengan presisi di dalam database.
     """
 
     def setUp(self):
         """
-        Menyiapkan data awal untuk kebutuhan pengujian pengguna.
+        Mempersiapkan data identitas awal untuk pengujian.
 
-        Metode ini membuat objek pengguna dummy agar dapat digunakan
-        pada setiap skenario pengujian.
+        Fungsi ini membangun objek pengguna contoh guna memastikan fondasi
+        autentikasi dapat diuji secara menyeluruh.
         """
         self.User = get_user_model()
         self.hanna_user = self.User.objects.create_user(
@@ -25,10 +25,10 @@ class UserModelTest(TestCase):
 
     def test_user_creation(self):
         """
-        Memvalidasi keberhasilan pembuatan akun pengguna baru.
+        Memvalidasi presisi penyimpanan data pendaftaran akun.
 
-        Memastikan atribut nama, email, dan kata sandi sesuai dengan
-        data yang didaftarkan.
+        Pengujian ini memastikan bahwa atribut nama, email, serta status keamanan
+        pengguna telah sesuai dengan informasi yang didaftarkan.
         """
         user = self.hanna_user
         assert user.name == 'Hanna Fernanda'

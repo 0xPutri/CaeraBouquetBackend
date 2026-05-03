@@ -14,10 +14,10 @@ class OrderModelTest(TestCase):
 
     def setUp(self):
         """
-        Menyiapkan lingkungan pengujian untuk transaksi pesanan.
+        Mempersiapkan data awal untuk pengujian model.
 
-        Membuat data pengguna, kategori, dan produk dasar untuk
-        mensimulasikan proses pemesanan.
+        Fungsi ini membangun fondasi data seperti pengguna dan produk agar
+        proses simulasi pembuatan pesanan dapat berjalan dengan valid.
         """
         User = get_user_model()
         self.user = User.objects.create_user(
@@ -36,10 +36,10 @@ class OrderModelTest(TestCase):
 
     def test_order_and_transaction_creation(self):
         """
-        Memvalidasi pembuatan pesanan beserta rincian itemnya.
+        Memvalidasi keterkaitan antara pesanan dan rincian transaksi.
 
-        Memastikan data pesanan dan transaksi saling terhubung serta
-        memiliki nilai yang tepat.
+        Pengujian ini memastikan bahwa data pesanan yang dibuat tersimpan
+        dengan benar beserta item produk yang menyertainya.
         """
         order = Order.objects.create(
             user=self.user,

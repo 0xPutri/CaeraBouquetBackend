@@ -14,6 +14,7 @@ class Category(models.Model):
     class Meta:
         verbose_name = "Kategori Produk"
         verbose_name_plural = "Kategori Produk"
+        ordering = ['-created_at']
 
     def __str__(self):
         """Mengembalikan nama kategori sebagai representasi teks.
@@ -43,6 +44,7 @@ class Product(models.Model):
     class Meta:
         verbose_name = "Produk Bouquet"
         verbose_name_plural = "Daftar Produk"
+        ordering = ['-created_at']
 
     def __str__(self):
         """Mengembalikan nama produk sebagai representasi teks.
