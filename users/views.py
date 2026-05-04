@@ -242,10 +242,13 @@ class LoginView(TokenObtainPairView):
         return response
 
 
+from django.http import HttpResponseRedirect
+from django.conf import settings
+
 @extend_schema(
     tags=['Autentikasi'],
     summary='Memverifikasi email pengguna',
-    description='Endpoint ini memverifikasi email pengguna berdasarkan token yang dikirim melalui email registrasi.',
+    description='Endpoint ini memverifikasi email pengguna berdasarkan token yang dikirim melalui email registrasi, kemudian mengarahkan pengguna ke halaman frontend.',
     parameters=[
         OpenApiParameter(
             name='token',
@@ -256,57 +259,45 @@ class LoginView(TokenObtainPairView):
         ),
     ],
     responses={
-        200: OpenApiResponse(
-            response=verify_email_response,
-            description='Email pengguna berhasil diverifikasi.',
-        ),
-        400: OpenApiResponse(description='Token verifikasi tidak valid atau sudah digunakan.'),
+        302: OpenApiResponse(description='Redirect ke halaman frontend (login atau error).'),
     },
-    examples=[
-        OpenApiExample(
-            'Contoh URL Verifikasi Email',
-            value='/api/auth/verify-email/?token=9a3a1d9f6e4d4c67b5933c70ef4d24d1',
-            parameter_only=('token', 'query'),
-        ),
-        OpenApiExample(
-            'Contoh Respons Verifikasi Berhasil',
-            value={
-                'message': 'Email berhasil diverifikasi.',
-            },
-            response_only=True,
-            status_codes=['200'],
-        ),
-    ],
 )
 class VerifyEmailView(generics.GenericAPIView):
     """Memverifikasi email pengguna menggunakan token verifikasi.
 
     View ini menerima token verifikasi yang dikirim melalui email, lalu
-    menandai akun pengguna sebagai terverifikasi jika token valid.
+    menandai akun pengguna sebagai terverifikasi jika token valid,
+    dan langsung mengarahkan pengguna kembali ke aplikasi frontend.
     """
 
     permission_classes = (AllowAny,)
     serializer_class = serializers.Serializer
 
-    def _verify_email(self, request):
-        """Memproses verifikasi email berdasarkan token pengguna.
+    def get(self, request, *args, **kwargs):
+        """Memproses verifikasi email dan mengarahkan ke frontend.
 
         Args:
             request (Request): Objek request yang memuat token verifikasi.
+            *args: Argumen tambahan dari kelas induk.
+            **kwargs: Argumen keyword tambahan dari kelas induk.
 
         Returns:
-            Response: Respons hasil verifikasi email pengguna.
+            HttpResponseRedirect: Mengarahkan pengguna ke antarmuka frontend.
         """
         token = request.query_params.get('token', '').strip()
+        
+        raw_url = str(getattr(settings, 'FRONTEND_URL', 'http://localhost:3000'))
+        frontend_url = raw_url.lstrip('=').strip(' \'"').rstrip('/')
+        
+        if not frontend_url.startswith('http'):
+            frontend_url = 'https://' + frontend_url
+        
         if not token:
             security_logger.warning(
                 "Verifikasi email gagal karena token tidak diberikan.",
                 extra={"ip": request.META.get("REMOTE_ADDR")}
             )
-            return Response(
-                {"detail": "Token verifikasi wajib diisi."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return HttpResponseRedirect(f"{frontend_url}/login?verify=error&detail=missing_token")
 
         user = User.objects.filter(
             email_verification_token=token,
@@ -318,10 +309,7 @@ class VerifyEmailView(generics.GenericAPIView):
                 "Verifikasi email gagal karena token tidak valid.",
                 extra={"ip": request.META.get("REMOTE_ADDR")}
             )
-            return Response(
-                {"detail": "Token verifikasi tidak valid atau sudah digunakan."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return HttpResponseRedirect(f"{frontend_url}/login?verify=error&detail=invalid_token")
 
         user.is_email_verified = True
         user.email_verification_token = None
@@ -331,23 +319,7 @@ class VerifyEmailView(generics.GenericAPIView):
             "Email pengguna berhasil diverifikasi.",
             extra={"user_id": str(user.id), "email": user.email}
         )
-        return Response(
-            {"message": "Email berhasil diverifikasi."},
-            status=status.HTTP_200_OK
-        )
-
-    def get(self, request, *args, **kwargs):
-        """Memproses verifikasi email dari tautan yang dibuka pengguna.
-
-        Args:
-            request (Request): Objek request yang memuat token verifikasi.
-            *args: Argumen tambahan dari kelas induk.
-            **kwargs: Argumen keyword tambahan dari kelas induk.
-
-        Returns:
-            Response: Respons hasil verifikasi email pengguna.
-        """
-        return self._verify_email(request)
+        return HttpResponseRedirect(f"{frontend_url}/login?verify=success")
 
 
 @extend_schema(

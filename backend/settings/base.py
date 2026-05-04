@@ -14,7 +14,8 @@ os.makedirs(LOG_DIR, exist_ok=True)
 SECRET_KEY = os.environ.get('SECRET_KEY')
 LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
 
-# Machine Learning Service
+# External services
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 ML_SERVICE_BASE_URL = os.environ.get('ML_SERVICE_BASE_URL', 'https://www.ml.caerabouquet.shop')
 
 # Order guardrails
