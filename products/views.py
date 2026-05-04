@@ -164,6 +164,94 @@ class RecommendationView(APIView):
 
     permission_classes = (AllowAny,)
 
+    def _resolve_ml_product_id(self, product_id, request):
+        """Maps internal product IDs to ML IDs while preserving existing error text."""
+        if not product_id.isdigit():
+            return product_id, None
+
+        source_product = Product.objects.filter(id=int(product_id)).only('external_product_id').first()
+        if source_product and source_product.external_product_id:
+            return source_product.external_product_id, None
+
+        security_logger.warning(
+            "Permintaan rekomendasi ditolak karena external_product_id tidak tersedia.",
+            extra={"product_id": product_id, "ip": request.META.get("REMOTE_ADDR")}
+        )
+        return None, Response(
+            {"error": "Produk acuan tidak memiliki external_product_id untuk rekomendasi."},
+            status=400
+        )
+
+    def _build_ml_url(self, request, product_id, event_type, top_n):
+        """Builds the ML endpoint URL; validation stays isolated from response mapping."""
+        ml_base_url = settings.ML_SERVICE_BASE_URL
+
+        if product_id:
+            ml_product_id, error_response = self._resolve_ml_product_id(product_id, request)
+            if error_response is not None:
+                return None, error_response
+            return f"{ml_base_url}/api/recommendations/product/{ml_product_id}/?top_n={top_n}", None
+
+        if event_type:
+            return f"{ml_base_url}/api/recommendations/event/{event_type}/?top_n={top_n}", None
+
+        return None, Response(
+            {"error": "Sertakan parameter 'product_id' atau 'event_type'."},
+            status=400
+        )
+
+    def _fetch_ml_recommendations(self, url):
+        """Contains the external HTTP call so error handling in get() stays compact."""
+        ml_base_url = settings.ML_SERVICE_BASE_URL
+
+        with requests.Session() as session:
+            host_header = urlparse(ml_base_url).netloc
+            session.headers = {
+                "Host": host_header,
+                "Accept": "application/json"
+            }
+
+            response = session.get(url)
+            response.raise_for_status()
+
+        content_type = response.headers.get("Content-Type", "").lower()
+        if not content_type.startswith("application/json"):
+            raise requests.exceptions.RequestException(
+                f"Tipe konten dari ML Service tidak valid: {content_type}"
+            )
+
+        return response.json().get('data', [])
+
+    def _get_products_by_external_id(self, ml_data):
+        """Fetches backend products in one query to avoid per-item lookups."""
+        ml_product_ids = [item.get("product_id") for item in ml_data if item.get("product_id")]
+        return {
+            product.external_product_id: product
+            for product in Product.objects.filter(external_product_id__in=ml_product_ids).only(
+                "id",
+                "external_product_id",
+                "name",
+                "price",
+            )
+        }
+
+    def _format_recommendations(self, ml_data):
+        """Normalizes ML items to the response contract expected by the backend API."""
+        products_by_external_id = self._get_products_by_external_id(ml_data)
+        recommendations = []
+
+        for item in ml_data:
+            ml_product_id = item.get("product_id")
+            backend_product = products_by_external_id.get(ml_product_id)
+            recommendations.append({
+                "id": backend_product.id if backend_product else None,
+                "product_id": ml_product_id,
+                "name": backend_product.name if backend_product else item.get("product_type", "Rekomendasi Produk").title(),
+                "price": float(backend_product.price) if backend_product else item.get("price", 0),
+            })
+
+        return recommendations
+
     def get(self, request, *args, **kwargs):
         """Memproses permintaan rekomendasi berdasarkan produk atau acara.
 
@@ -179,70 +267,14 @@ class RecommendationView(APIView):
         event_type = request.query_params.get('event_type')
         top_n = request.query_params.get('top_n', 5)
 
-        recommendations = []
-        ml_base_url = settings.ML_SERVICE_BASE_URL
+        url, error_response = self._build_ml_url(request, product_id, event_type, top_n)
+        if error_response is not None:
+            return error_response
 
         try:
-            if product_id:
-                ml_product_id = product_id
-                if product_id.isdigit():
-                    source_product = Product.objects.filter(id=int(product_id)).only('external_product_id').first()
-                    if not source_product or not source_product.external_product_id:
-                        security_logger.warning(
-                            "Permintaan rekomendasi ditolak karena external_product_id tidak tersedia.",
-                            extra={"product_id": product_id, "ip": request.META.get("REMOTE_ADDR")}
-                        )
-                        return Response(
-                            {"error": "Produk acuan tidak memiliki external_product_id untuk rekomendasi."},
-                            status=400
-                        )
-                    ml_product_id = source_product.external_product_id
-                url = f"{ml_base_url}/api/recommendations/product/{ml_product_id}/?top_n={top_n}"
-            elif event_type:
-                url = f"{ml_base_url}/api/recommendations/event/{event_type}/?top_n={top_n}"
-            else:
-                return Response(
-                    {"error": "Sertakan parameter 'product_id' atau 'event_type'."}, 
-                    status=400
-                )
-            
-            with requests.Session() as session:
-                host_header = urlparse(ml_base_url).netloc 
-                session.headers = {
-                    "Host": host_header,
-                    "Accept": "application/json"
-                }
-                
-                response = session.get(url)
-                response.raise_for_status()
+            ml_data = self._fetch_ml_recommendations(url)
+            recommendations = self._format_recommendations(ml_data)
 
-            content_type = response.headers.get("Content-Type", "").lower()
-            if not content_type.startswith("application/json"):
-                raise requests.exceptions.RequestException(
-                    f"Tipe konten dari ML Service tidak valid: {content_type}"
-                )
-
-            ml_data = response.json().get('data', [])
-            ml_product_ids = [item.get("product_id") for item in ml_data if item.get("product_id")]
-            products_by_external_id = {
-                product.external_product_id: product
-                for product in Product.objects.filter(external_product_id__in=ml_product_ids).only(
-                    "id",
-                    "external_product_id",
-                    "name",
-                    "price",
-                )
-            }
-
-            for item in ml_data:
-                ml_product_id = item.get("product_id")
-                backend_product = products_by_external_id.get(ml_product_id)
-                recommendations.append({
-                    "id": backend_product.id if backend_product else None,
-                    "product_id": ml_product_id,
-                    "name": backend_product.name if backend_product else item.get("product_type", "Rekomendasi Produk").title(),
-                    "price": float(backend_product.price) if backend_product else item.get("price", 0),
-                })
             logger.info(
                 "Permintaan rekomendasi berhasil diproses.",
                 extra={

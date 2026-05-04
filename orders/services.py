@@ -10,6 +10,70 @@ from .models import Order, Transaction
 logger = logging.getLogger('orders')
 security_logger = logging.getLogger('caera.security')
 
+ZERO_PRICE = Decimal('0.00')
+
+
+def _get_locked_products_by_id(product_ids):
+    """Centralizes product locking so order workflows use the same query shape."""
+    return {
+        product.id: product
+        for product in Product.objects.select_for_update().filter(id__in=product_ids)
+    }
+
+
+def _ensure_order_total_allowed(user, total_price, log_message, extra=None):
+    """Keeps the max-total business rule in one place without changing messages."""
+    if total_price <= settings.MAX_ORDER_TOTAL_PRICE:
+        return
+
+    log_extra = {"user_id": str(user.id), "total_price": str(total_price)}
+    if extra:
+        log_extra.update(extra)
+
+    security_logger.warning(log_message, extra=log_extra)
+    raise ValidationError("Total harga pesanan melebihi batas maksimum yang diizinkan.")
+
+
+def _create_order_record(*, user, total_price, delivery_address, notes):
+    """Creates the order row consistently for single- and multi-item flows."""
+    return Order.objects.create(
+        user=user,
+        total_price=total_price,
+        delivery_address=delivery_address,
+        notes=notes,
+    )
+
+
+def _create_transaction_and_reduce_stock(order, product, quantity):
+    """Persists one transaction and applies the matching stock deduction."""
+    Transaction.objects.create(
+        order=order,
+        product=product,
+        quantity=quantity,
+        price=product.price,
+    )
+
+    product.stock -= quantity
+    product.save(update_fields=['stock'])
+
+
+def _quantity_by_product(transactions):
+    """Aggregates quantities by product to make inventory diff logic easier to read."""
+    quantities = {}
+    for transaction_item in transactions:
+        product_id = transaction_item.get('product_id') if isinstance(transaction_item, dict) else transaction_item.product_id
+        quantity = transaction_item.get('quantity') if isinstance(transaction_item, dict) else transaction_item.quantity
+
+        if product_id is None:
+            continue
+        quantities[product_id] = quantities.get(product_id, 0) + quantity
+    return quantities
+
+
+def _stock_delta(product_id, current_quantities, previous_quantities):
+    """Returns the additional stock consumed by the edited order transaction set."""
+    return current_quantities.get(product_id, 0) - previous_quantities.get(product_id, 0)
+
 def snapshot_order_transactions(order):
     """Mengambil snapshot transaksi pesanan yang sedang tersimpan.
 
@@ -62,19 +126,18 @@ def create_order(*, user, items, delivery_address='', notes=''):
         raise ValidationError("Pesanan harus memiliki setidaknya satu produk.")
 
     product_ids = [item['product_id'] for item in items]
-    products_queryset = Product.objects.select_for_update().filter(id__in=product_ids)
-    products_map = {p.id: p for p in products_queryset}
+    products_map = _get_locked_products_by_id(product_ids)
 
     validated_items = []
-    total_price = Decimal('0.00')
+    total_price = ZERO_PRICE
 
     for item in items:
         p_id = item['product_id']
         qty = item['quantity']
-        
+
         if p_id not in products_map:
             raise ValidationError(f"Produk dengan ID {p_id} tidak ditemukan.")
-        
+
         product = products_map[p_id]
         if product.stock < qty:
             security_logger.warning(
@@ -88,18 +151,16 @@ def create_order(*, user, items, delivery_address='', notes=''):
         validated_items.append({
             'product': product,
             'quantity': qty,
-            'price': product.price
         })
 
-    if total_price > settings.MAX_ORDER_TOTAL_PRICE:
-        security_logger.warning(
-            "Pembuatan pesanan ditolak karena melebihi batas total harga.",
-            extra={"user_id": str(user.id), "total_price": str(total_price)}
-        )
-        raise ValidationError("Total harga pesanan melebihi batas maksimum yang diizinkan.")
+    _ensure_order_total_allowed(
+        user,
+        total_price,
+        "Pembuatan pesanan ditolak karena melebihi batas total harga.",
+    )
 
     with transaction.atomic():
-        order = Order.objects.create(
+        order = _create_order_record(
             user=user,
             total_price=total_price,
             delivery_address=delivery_address,
@@ -107,15 +168,7 @@ def create_order(*, user, items, delivery_address='', notes=''):
         )
 
         for v_item in validated_items:
-            Transaction.objects.create(
-                order=order,
-                product=v_item['product'],
-                quantity=v_item['quantity'],
-                price=v_item['price'],
-            )
-            
-            v_item['product'].stock -= v_item['quantity']
-            v_item['product'].save(update_fields=['stock'])
+            _create_transaction_and_reduce_stock(order, v_item['product'], v_item['quantity'])
 
     logger.info(
         "Pesanan multi-item berhasil dibuat.",
@@ -155,29 +208,21 @@ def create_order_with_single_transaction(*, user, product_id, quantity, delivery
         raise ValidationError("Stok tidak mencukupi")
 
     total_price = product.price * quantity
-    if total_price > settings.MAX_ORDER_TOTAL_PRICE:
-        security_logger.warning(
-            "Pembuatan pesanan ditolak di service karena melebihi batas total harga.",
-            extra={"user_id": str(user.id), "product_id": product_id, "total_price": str(total_price)}
-        )
-        raise ValidationError("Total harga pesanan melebihi batas maksimum yang diizinkan.")
+    _ensure_order_total_allowed(
+        user,
+        total_price,
+        "Pembuatan pesanan ditolak di service karena melebihi batas total harga.",
+        extra={"product_id": product_id},
+    )
 
-    order = Order.objects.create(
+    order = _create_order_record(
         user=user,
         total_price=total_price,
         delivery_address=delivery_address,
         notes=notes,
     )
 
-    Transaction.objects.create(
-        order=order,
-        product=product,
-        quantity=quantity,
-        price=product.price,
-    )
-
-    product.stock -= quantity
-    product.save(update_fields=['stock'])
+    _create_transaction_and_reduce_stock(order, product, quantity)
 
     logger.info(
         "Pesanan satu item berhasil dibuat melalui service.",
@@ -207,8 +252,6 @@ def sync_order_inventory(order, previous_snapshot):
         extra={"order_id": order.id}
     )
     current_transactions = list(order.transactions.select_related('product').all())
-    current_quantity_by_product = {}
-    previous_quantity_by_product = {}
 
     for transaction_item in current_transactions:
         if transaction_item.product_id is None:
@@ -224,25 +267,14 @@ def sync_order_inventory(order, previous_snapshot):
             transaction_item.price = transaction_item.product.price
             transaction_item.save(update_fields=['price'])
 
-        current_quantity_by_product[transaction_item.product_id] = (
-            current_quantity_by_product.get(transaction_item.product_id, 0) + transaction_item.quantity
-        )
-
-    for previous_item in previous_snapshot.values():
-        if previous_item['product_id'] is None:
-            continue
-        previous_quantity_by_product[previous_item['product_id']] = (
-            previous_quantity_by_product.get(previous_item['product_id'], 0) + previous_item['quantity']
-        )
+    current_quantity_by_product = _quantity_by_product(current_transactions)
+    previous_quantity_by_product = _quantity_by_product(previous_snapshot.values())
 
     touched_product_ids = set(current_quantity_by_product) | set(previous_quantity_by_product)
-    products = {
-        product.id: product
-        for product in Product.objects.select_for_update().filter(id__in=touched_product_ids)
-    }
+    products = _get_locked_products_by_id(touched_product_ids)
 
     for product_id in touched_product_ids:
-        stock_delta = current_quantity_by_product.get(product_id, 0) - previous_quantity_by_product.get(product_id, 0)
+        stock_delta = _stock_delta(product_id, current_quantity_by_product, previous_quantity_by_product)
         if stock_delta > 0 and products[product_id].stock < stock_delta:
             security_logger.warning(
                 "Sinkronisasi inventaris pesanan ditolak karena stok tidak mencukupi.",
@@ -251,7 +283,7 @@ def sync_order_inventory(order, previous_snapshot):
             raise ValidationError("Stok tidak mencukupi untuk menyimpan perubahan transaksi admin.")
 
     for product_id in touched_product_ids:
-        stock_delta = current_quantity_by_product.get(product_id, 0) - previous_quantity_by_product.get(product_id, 0)
+        stock_delta = _stock_delta(product_id, current_quantity_by_product, previous_quantity_by_product)
         if stock_delta == 0:
             continue
         product = products[product_id]
@@ -263,7 +295,7 @@ def sync_order_inventory(order, previous_snapshot):
         for transaction_item in current_transactions
         if transaction_item.price is not None
     )
-    order.total_price = recalculated_total if current_transactions else Decimal('0.00')
+    order.total_price = recalculated_total if current_transactions else ZERO_PRICE
     order.save(update_fields=['total_price'])
 
     logger.info(
