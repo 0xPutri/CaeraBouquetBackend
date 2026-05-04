@@ -1,8 +1,8 @@
 /**
  * @file admin_custom.css
- * @description Lembar gaya khusus untuk penyesuaian antarmuka admin Django Unfold.
- *              Berfokus pada pemeliharaan integritas tata letak komponen
- *              filter_horizontal guna mencegah overflow pada kontainer utama.
+ * @description Kustomisasi gaya untuk antarmuka admin Django Unfold CaeraBouquet.
+ *              Menyediakan penyesuaian visual untuk elemen umum dan komponen spesifik
+ *              agar tampilan konsisten dengan identitas merek.
  * @project CaeraBouquet
  */
 
@@ -48,13 +48,6 @@
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
-}
-
-/* Kontainer Baris Form */
-.form-row .field-groups,
-.form-row .field-user_permissions {
-    overflow: hidden !important;
-    max-width: 100% !important;
 }
 
 /* Pembungkus Widget Terkait */

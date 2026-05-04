@@ -16,6 +16,7 @@ class UserAdminForm(forms.ModelForm):
     class Meta:
         model = User
         fields = '__all__'
+        exclude = ('groups', 'user_permissions', 'password')
         help_texts = {
             'email_verification_token': 'Kosongkan jika token tidak digunakan.',
             'is_email_verified': 'Tandai jika email sudah terverifikasi.',
@@ -24,8 +25,6 @@ class UserAdminForm(forms.ModelForm):
             'is_active': 'Nonaktifkan jika akun tidak boleh masuk.',
             'is_staff': 'Izinkan akun mengakses Django Admin.',
             'is_superuser': 'Berikan akses penuh ke seluruh sistem.',
-            'groups': 'Gunakan untuk pengelompokan izin.',
-            'user_permissions': 'Gunakan untuk izin khusus tambahan.',
         }
 
 @admin.register(User)
@@ -37,11 +36,27 @@ class UserAdmin(ModelAdmin):
     """
 
     form = UserAdminForm
+    exclude = ('groups', 'user_permissions', 'password')
     list_display = ('email', 'name', 'is_staff', 'is_email_verified', 'created_at')
     search_fields = ('email', 'name')
     list_filter = ('is_staff', 'is_email_verified', 'is_active')
-    readonly_fields = ('password',)
-    filter_horizontal = ('groups', 'user_permissions')
+    readonly_fields = ('obscured_password',)
+
+    def obscured_password(self, obj):
+        """
+        Menyensor tampilan kata sandi pada antarmuka admin.
+
+        Fungsi ini mengganti hash kata sandi asli dengan teks penutup untuk
+        melindungi privasi pengguna dan mencegah kebocoran data.
+
+        Args:
+            obj (User): Objek pengguna yang sedang ditampilkan.
+
+        Returns:
+            str: Teks statis yang menginformasikan bahwa sandi disembunyikan.
+        """
+        return "********"
+    obscured_password.short_description = 'Kata Sandi'
 
 @admin.register(CustomGroup)
 class CustomGroupAdmin(ModelAdmin):

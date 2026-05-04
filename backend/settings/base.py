@@ -87,7 +87,7 @@ ROOT_URLCONF = 'backend.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'backend', 'templates')],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -319,6 +319,7 @@ UNFOLD = {
     "SITE_HEADER": "Caera Bouquet",
     "SITE_SYMBOL": "local_florist",
     "THEME": "light",
+    "DASHBOARD_CALLBACK": "backend.dashboard.dashboard_callback",
     "STYLES": [
         lambda request: static("css/admin_custom.css"),
     ],
