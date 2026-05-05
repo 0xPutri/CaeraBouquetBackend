@@ -10,17 +10,135 @@ from .models import Order, Transaction
 logger = logging.getLogger('orders')
 security_logger = logging.getLogger('caera.security')
 
-def snapshot_order_transactions(order):
-    """Mengambil snapshot transaksi pesanan yang sedang tersimpan.
-
-    Fungsi ini dipakai untuk membandingkan kondisi transaksi sebelum dan
-    sesudah perubahan agar penyesuaian stok dapat dihitung dengan tepat.
+def get_locked_products_by_id(product_ids):
+    """
+    Mengambil data produk dan menguncinya untuk proses transaksi.
+    
+    Fungsi ini memastikan data produk diurutkan berdasarkan ID guna mencegah
+    terjadinya kebuntuan (deadlock) saat ada banyak pesanan bersamaan.
 
     Args:
-        order (Order): Pesanan yang akan diambil snapshotnya.
+        product_ids (list): Daftar ID produk yang akan diambil.
 
     Returns:
-        dict: Snapshot transaksi.
+        QuerySet: Kumpulan produk yang telah dikunci.
+    """
+    return Product.objects.select_for_update().filter(id__in=product_ids).order_by('id')
+
+def ensure_order_total_allowed(total_price, user_id=None, log_message="Pembuatan pesanan ditolak karena melebihi batas total harga."):
+    """
+    Mengecek apakah total harga pesanan masih dalam batas aman.
+
+    Fungsi ini memvalidasi total belanja agar tidak melampaui batas maksimal
+    yang diizinkan oleh sistem.
+
+    Args:
+        total_price (Decimal): Total harga dari seluruh pesanan.
+        user_id (str, optional): ID pengguna untuk kebutuhan pencatatan.
+        log_message (str, optional): Pesan log jika validasi gagal.
+
+    Raises:
+        ValidationError: Jika total harga melebihi batas maksimum.
+    """
+    if total_price > settings.MAX_ORDER_TOTAL_PRICE:
+        security_logger.warning(
+            log_message,
+            extra={"user_id": str(user_id) if user_id else None, "total_price": str(total_price)}
+        )
+        raise ValidationError("Total harga pesanan melebihi batas maksimum yang diizinkan.")
+
+def create_order_record(user, total_price, delivery_address, notes):
+    """
+    Menyimpan data utama pesanan ke dalam database.
+
+    Fungsi ini membuat satu baris catatan pesanan baru berdasarkan rincian
+    yang diberikan oleh pengguna.
+
+    Args:
+        user (User): Pengguna yang melakukan pemesanan.
+        total_price (Decimal): Total harga yang harus dibayar.
+        delivery_address (str): Alamat tujuan pengiriman.
+        notes (str): Catatan tambahan untuk pesanan.
+
+    Returns:
+        Order: Objek pesanan yang berhasil dibuat.
+    """
+    return Order.objects.create(
+        user=user,
+        total_price=total_price,
+        delivery_address=delivery_address,
+        notes=notes,
+    )
+
+def create_transaction_and_reduce_stock(order, product, quantity, price):
+    """
+    Mencatat rincian transaksi dan menyesuaikan ketersediaan stok.
+
+    Fungsi ini membuat catatan untuk setiap item yang dibeli sekaligus
+    mengurangi jumlah stok fisik produk di katalog.
+
+    Args:
+        order (Order): Objek pesanan utama.
+        product (Product): Objek produk yang dibeli.
+        quantity (int): Jumlah produk yang dipesan.
+        price (Decimal): Harga satuan produk saat itu.
+    """
+    Transaction.objects.create(
+        order=order,
+        product=product,
+        quantity=quantity,
+        price=price,
+    )
+    product.stock -= quantity
+    product.save(update_fields=['stock'])
+
+def quantity_by_product(transactions):
+    """
+    Menghitung total jumlah setiap produk dalam sebuah pesanan.
+
+    Fungsi ini mengumpulkan dan menjumlahkan kuantitas dari daftar
+    transaksi untuk mempermudah proses sinkronisasi.
+
+    Args:
+        transactions (list): Daftar transaksi yang akan dihitung.
+
+    Returns:
+        dict: Pemetaan antara ID produk dan total jumlahnya.
+    """
+    qty_map = {}
+    for tx in transactions:
+        if tx.product_id:
+            qty_map[tx.product_id] = qty_map.get(tx.product_id, 0) + tx.quantity
+    return qty_map
+
+def stock_delta(current_qty, previous_qty):
+    """
+    Menghitung selisih jumlah stok untuk sinkronisasi inventaris.
+
+    Fungsi ini membantu mengetahui berapa banyak stok yang harus dikembalikan
+    atau dikurangi saat terjadi perubahan pesanan.
+
+    Args:
+        current_qty (int): Jumlah pesanan saat ini.
+        previous_qty (int): Jumlah pesanan sebelumnya.
+
+    Returns:
+        int: Selisih kuantitas stok.
+    """
+    return current_qty - previous_qty
+
+def snapshot_order_transactions(order):
+    """
+    Mengambil data riwayat transaksi dari sebuah pesanan.
+
+    Fungsi ini merekam kondisi transaksi sebelum adanya perubahan, sehingga
+    penyesuaian stok dapat dihitung secara akurat nantinya.
+
+    Args:
+        order (Order): Objek pesanan yang akan diambil datanya.
+
+    Returns:
+        dict: Peta data transaksi saat ini.
     """
     if not order.pk:
         logger.debug(
@@ -44,25 +162,29 @@ def snapshot_order_transactions(order):
     return snapshot
 
 def create_order(*, user, items, delivery_address='', notes=''):
-    """Membuat pesanan dengan banyak produk secara atomik.
+    """
+    Memproses pembuatan pesanan untuk banyak produk sekaligus.
+
+    Fungsi ini menjamin bahwa validasi stok, pencatatan transaksi, dan
+    pembaruan inventaris dilakukan secara aman dalam satu kesatuan waktu.
 
     Args:
-        user (User): Pengguna yang membuat pesanan.
-        items (list): Daftar dict berisi 'product_id' dan 'quantity'.
-        delivery_address (str): Alamat pengiriman.
-        notes (str): Catatan tambahan.
+        user (User): Pengguna yang melakukan pemesanan.
+        items (list): Daftar produk yang dibeli beserta jumlahnya.
+        delivery_address (str, optional): Alamat tujuan pengiriman.
+        notes (str, optional): Pesan tambahan dari pelanggan.
 
     Returns:
-        Order: Objek pesanan baru.
+        Order: Objek pesanan yang berhasil diproses.
 
     Raises:
-        ValidationError: Jika stok tidak cukup atau aturan bisnis dilanggar.
+        ValidationError: Jika produk tidak valid atau stok habis.
     """
     if not items:
         raise ValidationError("Pesanan harus memiliki setidaknya satu produk.")
 
     product_ids = [item['product_id'] for item in items]
-    products_queryset = Product.objects.select_for_update().filter(id__in=product_ids)
+    products_queryset = get_locked_products_by_id(product_ids)
     products_map = {p.id: p for p in products_queryset}
 
     validated_items = []
@@ -91,59 +213,42 @@ def create_order(*, user, items, delivery_address='', notes=''):
             'price': product.price
         })
 
-    if total_price > settings.MAX_ORDER_TOTAL_PRICE:
-        security_logger.warning(
-            "Pembuatan pesanan ditolak karena melebihi batas total harga.",
-            extra={"user_id": str(user.id), "total_price": str(total_price)}
-        )
-        raise ValidationError("Total harga pesanan melebihi batas maksimum yang diizinkan.")
+    ensure_order_total_allowed(total_price, user.id, "Pembuatan pesanan ditolak karena melebihi batas total harga.")
 
     with transaction.atomic():
-        order = Order.objects.create(
-            user=user,
-            total_price=total_price,
-            delivery_address=delivery_address,
-            notes=notes,
-        )
+        order = create_order_record(user, total_price, delivery_address, notes)
 
         for v_item in validated_items:
-            Transaction.objects.create(
-                order=order,
-                product=v_item['product'],
-                quantity=v_item['quantity'],
-                price=v_item['price'],
-            )
-            
-            v_item['product'].stock -= v_item['quantity']
-            v_item['product'].save(update_fields=['stock'])
+            create_transaction_and_reduce_stock(order, v_item['product'], v_item['quantity'], v_item['price'])
 
     logger.info(
         "Pesanan multi-item berhasil dibuat.",
         extra={"user_id": str(user.id), "order_id": order.id, "item_count": len(validated_items)}
     )
     return order
-
+@transaction.atomic
 def create_order_with_single_transaction(*, user, product_id, quantity, delivery_address='', notes=''):
-    """Membuat pesanan satu produk dan memperbarui stok secara atomik.
+    """
+    Memproses pembuatan pesanan untuk satu jenis produk.
 
-    Fungsi ini dipakai pada alur checkout sederhana agar pembuatan order,
-    pencatatan transaksi, dan pengurangan stok tetap berjalan konsisten.
+    Fungsi ini disediakan untuk mendukung alur pembelian sederhana, memastikan
+    stok dan data transaksi tetap konsisten.
 
     Args:
-        user (User): Pengguna yang membuat pesanan.
-        product_id (int): ID produk yang ingin dipesan.
-        quantity (int): Jumlah produk yang diminta.
-        delivery_address (str): Alamat pengiriman pesanan.
-        notes (str): Catatan tambahan dari pengguna.
+        user (User): Pengguna yang melakukan pemesanan.
+        product_id (int): ID dari produk yang akan dibeli.
+        quantity (int): Jumlah produk yang dipesan.
+        delivery_address (str, optional): Alamat tujuan pengiriman.
+        notes (str, optional): Pesan tambahan dari pelanggan.
 
     Returns:
-        tuple[Order, Product]: Objek pesanan baru dan produk yang diperbarui.
+        tuple: Objek pesanan baru dan produk yang diperbarui.
 
     Raises:
-        ValidationError: Jika pesanan tidak memenuhi aturan bisnis.
+        ValidationError: Jika stok tidak memenuhi permintaan.
     """
     product = get_object_or_404(
-        Product.objects.select_for_update(),
+        get_locked_products_by_id([product_id]),
         id=product_id,
     )
 
@@ -155,29 +260,10 @@ def create_order_with_single_transaction(*, user, product_id, quantity, delivery
         raise ValidationError("Stok tidak mencukupi")
 
     total_price = product.price * quantity
-    if total_price > settings.MAX_ORDER_TOTAL_PRICE:
-        security_logger.warning(
-            "Pembuatan pesanan ditolak di service karena melebihi batas total harga.",
-            extra={"user_id": str(user.id), "product_id": product_id, "total_price": str(total_price)}
-        )
-        raise ValidationError("Total harga pesanan melebihi batas maksimum yang diizinkan.")
+    ensure_order_total_allowed(total_price, user.id, "Pembuatan pesanan ditolak di service karena melebihi batas total harga.")
 
-    order = Order.objects.create(
-        user=user,
-        total_price=total_price,
-        delivery_address=delivery_address,
-        notes=notes,
-    )
-
-    Transaction.objects.create(
-        order=order,
-        product=product,
-        quantity=quantity,
-        price=product.price,
-    )
-
-    product.stock -= quantity
-    product.save(update_fields=['stock'])
+    order = create_order_record(user, total_price, delivery_address, notes)
+    create_transaction_and_reduce_stock(order, product, quantity, product.price)
 
     logger.info(
         "Pesanan satu item berhasil dibuat melalui service.",
@@ -187,28 +273,27 @@ def create_order_with_single_transaction(*, user, product_id, quantity, delivery
 
 @transaction.atomic
 def sync_order_inventory(order, previous_snapshot):
-    """Menyelaraskan transaksi pesanan dengan stok dan total harga terbaru.
+    """
+    Menyelaraskan data pesanan dengan inventaris terbaru.
 
-    Fungsi ini digunakan setelah perubahan transaksi admin agar harga
-    item, total pesanan, dan stok produk tetap sinkron dengan data akhir.
+    Fungsi ini merespons perubahan yang dilakukan oleh admin, memastikan
+    bahwa selisih stok dan total harga dihitung ulang dengan presisi.
 
     Args:
-        order (Order): Objek pesanan yang sedang diselaraskan.
-        previous_snapshot (dict): Snapshot transaksi sebelum perubahan dilakukan.
+        order (Order): Objek pesanan yang mengalami perubahan.
+        previous_snapshot (dict): Kondisi pesanan sebelum diubah admin.
 
     Returns:
-        Order: Objek pesanan yang telah diperbarui total harganya.
+        Order: Objek pesanan yang telah disinkronisasi.
 
     Raises:
-        ValidationError: Jika perubahan transaksi membuat stok tidak mencukupi.
+        ValidationError: Jika perubahan admin menyebabkan stok minus.
     """
     logger.debug(
         "Sinkronisasi inventaris pesanan dimulai.",
         extra={"order_id": order.id}
     )
     current_transactions = list(order.transactions.select_related('product').all())
-    current_quantity_by_product = {}
-    previous_quantity_by_product = {}
 
     for transaction_item in current_transactions:
         if transaction_item.product_id is None:
@@ -224,9 +309,8 @@ def sync_order_inventory(order, previous_snapshot):
             transaction_item.price = transaction_item.product.price
             transaction_item.save(update_fields=['price'])
 
-        current_quantity_by_product[transaction_item.product_id] = (
-            current_quantity_by_product.get(transaction_item.product_id, 0) + transaction_item.quantity
-        )
+    current_quantity_by_product = quantity_by_product(current_transactions)
+    previous_quantity_by_product = {}
 
     for previous_item in previous_snapshot.values():
         if previous_item['product_id'] is None:
@@ -238,24 +322,24 @@ def sync_order_inventory(order, previous_snapshot):
     touched_product_ids = set(current_quantity_by_product) | set(previous_quantity_by_product)
     products = {
         product.id: product
-        for product in Product.objects.select_for_update().filter(id__in=touched_product_ids)
+        for product in get_locked_products_by_id(list(touched_product_ids))
     }
 
     for product_id in touched_product_ids:
-        stock_delta = current_quantity_by_product.get(product_id, 0) - previous_quantity_by_product.get(product_id, 0)
-        if stock_delta > 0 and products[product_id].stock < stock_delta:
+        delta = stock_delta(current_quantity_by_product.get(product_id, 0), previous_quantity_by_product.get(product_id, 0))
+        if delta > 0 and products[product_id].stock < delta:
             security_logger.warning(
                 "Sinkronisasi inventaris pesanan ditolak karena stok tidak mencukupi.",
-                extra={"order_id": order.id, "product_id": product_id, "required_stock": stock_delta}
+                extra={"order_id": order.id, "product_id": product_id, "required_stock": delta}
             )
             raise ValidationError("Stok tidak mencukupi untuk menyimpan perubahan transaksi admin.")
 
     for product_id in touched_product_ids:
-        stock_delta = current_quantity_by_product.get(product_id, 0) - previous_quantity_by_product.get(product_id, 0)
-        if stock_delta == 0:
+        delta = stock_delta(current_quantity_by_product.get(product_id, 0), previous_quantity_by_product.get(product_id, 0))
+        if delta == 0:
             continue
         product = products[product_id]
-        product.stock -= stock_delta
+        product.stock -= delta
         product.save(update_fields=['stock'])
 
     recalculated_total = sum(

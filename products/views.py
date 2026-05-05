@@ -117,6 +117,21 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['price', 'created_at']
     ordering = ['-created_at']
 
+class RecommendationError(Exception):
+    """
+    Menangani kesalahan bisnis pada alur rekomendasi.
+
+    Pengecualian khusus ini digunakan untuk membedakan kesalahan logika internal
+    dengan kesalahan teknis lainnya saat memproses rekomendasi.
+
+    Args:
+        message (str): Pesan kesalahan yang akan ditampilkan.
+        status_code (int, optional): Kode status HTTP (bawaan 400).
+    """
+    def __init__(self, message, status_code=400):
+        super().__init__(message)
+        self.status_code = status_code
+
 @extend_schema(
     tags=['Rekomendasi ML'],
     summary='Mendapatkan rekomendasi produk',
@@ -156,7 +171,8 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
 )
 
 class RecommendationView(APIView):
-    """Mengambil rekomendasi produk dari layanan machine learning.
+    """
+    Mengambil rekomendasi produk dari layanan machine learning.
 
     View ini meneruskan parameter permintaan ke layanan ML, lalu
     menyesuaikan hasilnya agar konsisten dengan format respons backend.
@@ -164,111 +180,187 @@ class RecommendationView(APIView):
 
     permission_classes = (AllowAny,)
 
-    def get(self, request, *args, **kwargs):
-        """Memproses permintaan rekomendasi berdasarkan produk atau acara.
+    def _resolve_ml_product_id(self, product_id, request_ip):
+        """
+        Mencari ID produk eksternal untuk kebutuhan layanan ML.
+
+        Fungsi ini menerjemahkan ID internal dari database backend menjadi
+        ID yang dikenali oleh layanan machine learning.
 
         Args:
-            request (Request): Objek request yang memuat query parameter.
-            *args: Argumen tambahan dari kelas induk.
-            **kwargs: Argumen keyword tambahan dari kelas induk.
+            product_id (str): ID produk yang dikirimkan oleh klien.
+            request_ip (str): Alamat IP klien untuk keperluan pencatatan log.
 
         Returns:
-            Response: Respons berisi daftar rekomendasi atau pesan galat.
+            str: ID produk eksternal untuk layanan ML.
+
+        Raises:
+            RecommendationError: Jika produk acuan tidak memiliki ID eksternal.
+        """
+        if not product_id.isdigit():
+            return product_id
+            
+        source_product = Product.objects.filter(id=int(product_id)).only('external_product_id').first()
+        if not source_product or not source_product.external_product_id:
+            security_logger.warning(
+                "Permintaan rekomendasi ditolak karena external_product_id tidak tersedia.",
+                extra={"product_id": product_id, "ip": request_ip}
+            )
+            raise RecommendationError("Produk acuan tidak memiliki external_product_id untuk rekomendasi.", 400)
+            
+        return source_product.external_product_id
+
+    def _build_ml_url(self, product_id, event_type, top_n, request_ip):
+        """
+        Membentuk URL lengkap untuk memanggil layanan ML.
+
+        Fungsi ini merangkai alamat tujuan berdasarkan parameter jenis acara
+        atau ID produk yang diminta.
+
+        Args:
+            product_id (str): ID produk acuan.
+            event_type (str): Jenis acara untuk rekomendasi.
+            top_n (int): Jumlah maksimum rekomendasi yang diinginkan.
+            request_ip (str): Alamat IP klien untuk keperluan log.
+
+        Returns:
+            str: URL lengkap untuk layanan machine learning.
+
+        Raises:
+            RecommendationError: Jika parameter utama tidak disertakan.
+        """
+        ml_base_url = settings.ML_SERVICE_BASE_URL
+        if product_id:
+            ml_product_id = self._resolve_ml_product_id(product_id, request_ip)
+            return f"{ml_base_url}/api/recommendations/product/{ml_product_id}/?top_n={top_n}"
+        elif event_type:
+            return f"{ml_base_url}/api/recommendations/event/{event_type}/?top_n={top_n}"
+        
+        raise RecommendationError("Sertakan parameter 'product_id' atau 'event_type'.", 400)
+
+    def _fetch_ml_data(self, url):
+        """
+        Mengambil data mentah langsung dari layanan ML.
+
+        Fungsi ini melakukan panggilan HTTP yang aman dan memverifikasi format
+        respons yang diterima.
+
+        Args:
+            url (str): Alamat lengkap endpoint layanan ML.
+
+        Returns:
+            list: Daftar data rekomendasi mentah dalam format kamus.
+
+        Raises:
+            RequestException: Jika pemanggilan gagal atau formatnya bukan JSON.
+        """
+        with requests.Session() as session:
+            host_header = urlparse(settings.ML_SERVICE_BASE_URL).netloc 
+            session.headers = {
+                "Host": host_header,
+                "Accept": "application/json"
+            }
+            
+            response = session.get(url, timeout=30)
+            response.raise_for_status()
+
+        content_type = response.headers.get("Content-Type", "").lower()
+        if not content_type.startswith("application/json"):
+            raise requests.exceptions.RequestException(
+                f"Tipe konten dari ML Service tidak valid: {content_type}"
+            )
+
+        return response.json().get('data', [])
+
+    def _lookup_backend_products(self, ml_data):
+        """
+        Mencocokkan data rekomendasi dengan produk di database lokal.
+
+        Fungsi ini melakukan pencarian efisien untuk mendapatkan detail harga
+        serta informasi lain dari produk yang disarankan.
+
+        Args:
+            ml_data (list): Daftar data mentah hasil rekomendasi ML.
+
+        Returns:
+            dict: Pemetaan ID produk eksternal ke objek produk lokal.
+        """
+        ml_product_ids = [item.get("product_id") for item in ml_data if item.get("product_id")]
+        return {
+            product.external_product_id: product
+            for product in Product.objects.filter(external_product_id__in=ml_product_ids).only(
+                "id", "external_product_id", "name", "price"
+            )
+        }
+
+    def _format_recommendations(self, ml_data, products_by_external_id):
+        """
+        Menyusun ulang format data untuk dikirim kembali ke klien.
+
+        Fungsi ini menggabungkan data dari ML dengan detail produk lokal agar
+        respons lebih ramah untuk digunakan oleh aplikasi frontend.
+
+        Args:
+            ml_data (list): Data mentah hasil rekomendasi ML.
+            products_by_external_id (dict): Peta produk yang ada di database lokal.
+
+        Returns:
+            list: Kumpulan rekomendasi akhir yang siap dikirimkan.
+        """
+        recommendations = []
+        for item in ml_data:
+            ml_product_id = item.get("product_id")
+            backend_product = products_by_external_id.get(ml_product_id)
+            recommendations.append({
+                "id": backend_product.id if backend_product else None,
+                "product_id": ml_product_id,
+                "name": backend_product.name if backend_product else item.get("product_type", "Rekomendasi Produk").title(),
+                "price": float(backend_product.price) if backend_product else item.get("price", 0),
+            })
+        return recommendations
+
+    def get(self, request, *args, **kwargs):
+        """
+        Menyajikan rekomendasi produk berdasarkan preferensi pengguna.
+
+        Fungsi ini memandu alur dari penerimaan parameter hingga pengembalian
+        hasil rekomendasi yang sudah disesuaikan dengan data lokal.
+
+        Args:
+            request (Request): Objek request HTTP yang memuat query parameter.
+            *args: Argumen tambahan untuk pemrosesan view.
+            **kwargs: Argumen keyword tambahan untuk pemrosesan view.
+
+        Returns:
+            Response: Daftar rekomendasi produk atau pesan kesalahan HTTP.
         """
         product_id = request.query_params.get('product_id')
         event_type = request.query_params.get('event_type')
         top_n = request.query_params.get('top_n', 5)
-
-        recommendations = []
-        ml_base_url = settings.ML_SERVICE_BASE_URL
+        request_ip = request.META.get("REMOTE_ADDR")
 
         try:
-            if product_id:
-                ml_product_id = product_id
-                if product_id.isdigit():
-                    source_product = Product.objects.filter(id=int(product_id)).only('external_product_id').first()
-                    if not source_product or not source_product.external_product_id:
-                        security_logger.warning(
-                            "Permintaan rekomendasi ditolak karena external_product_id tidak tersedia.",
-                            extra={"product_id": product_id, "ip": request.META.get("REMOTE_ADDR")}
-                        )
-                        return Response(
-                            {"error": "Produk acuan tidak memiliki external_product_id untuk rekomendasi."},
-                            status=400
-                        )
-                    ml_product_id = source_product.external_product_id
-                url = f"{ml_base_url}/api/recommendations/product/{ml_product_id}/?top_n={top_n}"
-            elif event_type:
-                url = f"{ml_base_url}/api/recommendations/event/{event_type}/?top_n={top_n}"
-            else:
-                return Response(
-                    {"error": "Sertakan parameter 'product_id' atau 'event_type'."}, 
-                    status=400
-                )
+            url = self._build_ml_url(product_id, event_type, top_n, request_ip)
+            ml_data = self._fetch_ml_data(url)
+            products_by_external_id = self._lookup_backend_products(ml_data)
+            recommendations = self._format_recommendations(ml_data, products_by_external_id)
             
-            with requests.Session() as session:
-                host_header = urlparse(ml_base_url).netloc 
-                session.headers = {
-                    "Host": host_header,
-                    "Accept": "application/json"
-                }
-                
-                response = session.get(url)
-                response.raise_for_status()
-
-            content_type = response.headers.get("Content-Type", "").lower()
-            if not content_type.startswith("application/json"):
-                raise requests.exceptions.RequestException(
-                    f"Tipe konten dari ML Service tidak valid: {content_type}"
-                )
-
-            ml_data = response.json().get('data', [])
-            ml_product_ids = [item.get("product_id") for item in ml_data if item.get("product_id")]
-            products_by_external_id = {
-                product.external_product_id: product
-                for product in Product.objects.filter(external_product_id__in=ml_product_ids).only(
-                    "id",
-                    "external_product_id",
-                    "name",
-                    "price",
-                )
-            }
-
-            for item in ml_data:
-                ml_product_id = item.get("product_id")
-                backend_product = products_by_external_id.get(ml_product_id)
-                recommendations.append({
-                    "id": backend_product.id if backend_product else None,
-                    "product_id": ml_product_id,
-                    "name": backend_product.name if backend_product else item.get("product_type", "Rekomendasi Produk").title(),
-                    "price": float(backend_product.price) if backend_product else item.get("price", 0),
-                })
             logger.info(
                 "Permintaan rekomendasi berhasil diproses.",
                 extra={
-                    "ip": request.META.get("REMOTE_ADDR"),
+                    "ip": request_ip,
                     "reference_product": product_id,
                     "event_type": event_type,
                     "result_count": len(recommendations)
                 }
             )
-        except JSONDecodeError:
-            security_logger.exception(
-                "ML Service mengembalikan JSON yang tidak valid.",
-                extra={"ip": request.META.get("REMOTE_ADDR")}
-            )
-            return Response(
-                {"error": "Respons ML Service tidak valid."},
-                status=503
-            )
-        except requests.exceptions.RequestException as e:
-            security_logger.exception(
-                "Permintaan ke ML Service gagal diproses.",
-                extra={"ip": request.META.get("REMOTE_ADDR"), "error": str(e)}
-            )
-            return Response(
-                {"error": "ML Service sedang tidak tersedia."},
-                status=503
-            )
+            return Response({"recommendations": recommendations})
 
-        return Response({"recommendations": recommendations})
+        except RecommendationError as e:
+            return Response({"error": str(e)}, status=e.status_code)
+        except JSONDecodeError:
+            security_logger.exception("ML Service mengembalikan JSON yang tidak valid.", extra={"ip": request_ip})
+            return Response({"error": "Respons ML Service tidak valid."}, status=503)
+        except requests.exceptions.RequestException as e:
+            security_logger.exception("Permintaan ke ML Service gagal diproses.", extra={"ip": request_ip, "error": str(e)})
+            return Response({"error": "ML Service sedang tidak tersedia."}, status=503)
