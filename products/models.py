@@ -1,5 +1,6 @@
 from django.db import models
 
+
 class Category(models.Model):
     """Menyimpan kelompok produk bouquet dalam katalog.
 
@@ -23,7 +24,8 @@ class Category(models.Model):
             str: Nama kategori produk.
         """
         return self.name
-    
+
+
 class Product(models.Model):
     """Menyimpan informasi utama dari produk bouquet.
 

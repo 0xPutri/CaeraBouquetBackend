@@ -1,5 +1,7 @@
 import logging
 import requests
+from urllib.parse import urlparse
+
 from rest_framework import viewsets, filters
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
@@ -8,10 +10,10 @@ from django.conf import settings
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers
 from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema, extend_schema_view, inline_serializer, OpenApiParameter, OpenApiTypes
+from requests.exceptions import JSONDecodeError
+
 from .models import Category, Product
 from .serializers import CategorySerializer, ProductSerializer
-from urllib.parse import urlparse
-from requests.exceptions import JSONDecodeError
 
 logger = logging.getLogger('products')
 security_logger = logging.getLogger('caera.security')
@@ -36,6 +38,7 @@ recommendation_response = inline_serializer(
     },
 )
 
+
 @extend_schema_view(
     list=extend_schema(
         tags=['Katalog'],
@@ -59,6 +62,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = (AllowAny,)
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -107,7 +111,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     kategori, deskripsi, harga, dan tautan gambar produk. Endpoint list
     juga mendukung pagination, filtering, pencarian, dan ordering.
     """
-    queryset = Product.objects.select_related('category').all() # Optimasi query untuk mencegah masalah N+1.
+    queryset = Product.objects.select_related('category').all()  # Optimasi query untuk mencegah masalah N+1.
     serializer_class = ProductSerializer
     permission_classes = (AllowAny,)
 
@@ -116,6 +120,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
     ordering = ['-created_at']
+
 
 class RecommendationError(Exception):
     """
@@ -128,9 +133,11 @@ class RecommendationError(Exception):
         message (str): Pesan kesalahan yang akan ditampilkan.
         status_code (int, optional): Kode status HTTP (bawaan 400).
     """
+
     def __init__(self, message, status_code=400):
         super().__init__(message)
         self.status_code = status_code
+
 
 @extend_schema(
     tags=['Rekomendasi ML'],
@@ -169,7 +176,6 @@ class RecommendationError(Exception):
         ),
     ],
 )
-
 class RecommendationView(APIView):
     """
     Mengambil rekomendasi produk dari layanan machine learning.
@@ -199,7 +205,7 @@ class RecommendationView(APIView):
         """
         if not product_id.isdigit():
             return product_id
-            
+
         source_product = Product.objects.filter(id=int(product_id)).only('external_product_id').first()
         if not source_product or not source_product.external_product_id:
             security_logger.warning(
@@ -207,7 +213,7 @@ class RecommendationView(APIView):
                 extra={"product_id": product_id, "ip": request_ip}
             )
             raise RecommendationError("Produk acuan tidak memiliki external_product_id untuk rekomendasi.", 400)
-            
+
         return source_product.external_product_id
 
     def _build_ml_url(self, product_id, event_type, top_n, request_ip):
@@ -235,7 +241,7 @@ class RecommendationView(APIView):
             return f"{ml_base_url}/api/recommendations/product/{ml_product_id}/?top_n={top_n}"
         elif event_type:
             return f"{ml_base_url}/api/recommendations/event/{event_type}/?top_n={top_n}"
-        
+
         raise RecommendationError("Sertakan parameter 'product_id' atau 'event_type'.", 400)
 
     def _fetch_ml_data(self, url):
@@ -255,12 +261,12 @@ class RecommendationView(APIView):
             RequestException: Jika pemanggilan gagal atau formatnya bukan JSON.
         """
         with requests.Session() as session:
-            host_header = urlparse(settings.ML_SERVICE_BASE_URL).netloc 
+            host_header = urlparse(settings.ML_SERVICE_BASE_URL).netloc
             session.headers = {
                 "Host": host_header,
                 "Accept": "application/json"
             }
-            
+
             response = session.get(url, timeout=30)
             response.raise_for_status()
 
@@ -344,7 +350,7 @@ class RecommendationView(APIView):
             ml_data = self._fetch_ml_data(url)
             products_by_external_id = self._lookup_backend_products(ml_data)
             recommendations = self._format_recommendations(ml_data, products_by_external_id)
-            
+
             logger.info(
                 "Permintaan rekomendasi berhasil diproses.",
                 extra={

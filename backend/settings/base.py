@@ -1,10 +1,11 @@
 import os
 from datetime import timedelta
-from pathlib import Path
-from dotenv import load_dotenv
 from decimal import Decimal
+from pathlib import Path
+
 from django.templatetags.static import static
 from django.urls import reverse_lazy
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(os.path.join(BASE_DIR, '.env'))
@@ -33,11 +34,11 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('FILE_UPLOAD_MAX_MEMORY_SIZE', 
 
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = [
-    origin.strip() 
+    origin.strip()
     for origin in os.environ.get(
-        "CORS_ALLOWED_ORIGINS", 
+        "CORS_ALLOWED_ORIGINS",
         "http://localhost:3000,http://127.0.0.1:3000"
-    ).split(",") 
+    ).split(",")
     if origin.strip() and "://" in origin and len(origin.strip().split("://")[-1]) > 0
 ]
 CORS_ALLOW_CREDENTIALS = True
@@ -71,7 +72,7 @@ INSTALLED_APPS = [
 AUTH_USER_MODEL = 'users.User'
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware', # CORS
+    'corsheaders.middleware.CorsMiddleware',  # CORS
     'backend.middleware.GlobalAPIExceptionMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -114,7 +115,7 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'EXCEPTION_HANDLER': 'backend.exceptions.global_exception_handler',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10, # 10 Data per halaman
+    'PAGE_SIZE': 10,  # 10 Data per halaman
     'DEFAULT_THROTTLE_RATES': {
         'order_create': ORDER_CREATE_RATE_LIMIT,
     },
@@ -144,7 +145,7 @@ PASSWORD_HASHERS = [
 ]
 
 # Internationalization
-LANGUAGE_CODE = 'id-id' # Bahasa Indonesia
+LANGUAGE_CODE = 'id-id'  # Bahasa Indonesia
 TIME_ZONE = 'Asia/Jakarta'
 USE_I18N = True
 USE_TZ = True

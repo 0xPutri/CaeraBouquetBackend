@@ -1,13 +1,16 @@
 import logging
+
 from django import forms
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 from django.db import transaction
+
 from .models import Order, Transaction
 from products.models import Product
 from .services import snapshot_order_transactions, sync_order_inventory
 
 audit_logger = logging.getLogger('caera.security')
+
 
 class TransactionInlineForm(forms.ModelForm):
     """Menyediakan bantuan isian untuk detail item transaksi.
@@ -99,6 +102,7 @@ class TransactionInlineFormSet(forms.BaseInlineFormSet):
                 )
                 raise forms.ValidationError("Stok tidak mencukupi untuk transaksi admin yang dimasukkan.")
 
+
 class TransactionInline(TabularInline):
     """Menampilkan detail transaksi langsung di halaman pesanan.
 
@@ -111,6 +115,7 @@ class TransactionInline(TabularInline):
     model = Transaction
     extra = 1
     readonly_fields = ('price',)
+
 
 @admin.register(Order)
 class OrderAdmin(ModelAdmin):

@@ -1,5 +1,7 @@
 from rest_framework import serializers
+
 from .models import Category, Product
+
 
 class CategorySerializer(serializers.ModelSerializer):
     """Menyajikan data kategori secara ringkas untuk katalog.
@@ -11,6 +13,7 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ('id', 'name')
+
 
 class ProductSerializer(serializers.ModelSerializer):
     """Menyajikan data produk untuk kebutuhan katalog publik.

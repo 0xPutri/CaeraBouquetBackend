@@ -1,11 +1,13 @@
 import uuid
 import logging
+
 from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin, Group
 from django.core.mail import send_mail
 from django.db import models
 
 logger = logging.getLogger('users')
+
 
 class UserManager(BaseUserManager):
     """Mengelola proses pembuatan akun pengguna.
@@ -52,7 +54,8 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         return self.create_user(email, name, password, **extra_fields)
-    
+
+
 class User(AbstractBaseUser, PermissionsMixin):
     """Merepresentasikan akun pengguna pada sistem Caera Bouquet.
 
@@ -127,6 +130,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             "Email verifikasi berhasil dikirim.",
             extra={"user_id": str(self.id), "email": self.email}
         )
+
 
 class CustomGroup(Group):
     """

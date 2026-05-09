@@ -1,6 +1,8 @@
 from django.db import models
 from django.conf import settings
+
 from products.models import Product
+
 
 class Order(models.Model):
     """Menyimpan data utama pesanan yang dibuat pengguna.
@@ -30,7 +32,8 @@ class Order(models.Model):
             str: Teks yang memuat nomor pesanan dan nama pengguna.
         """
         return f"Order #{self.id} - {self.user.name}"
-    
+
+
 class Transaction(models.Model):
     """Menyimpan detail item produk pada sebuah pesanan.
 

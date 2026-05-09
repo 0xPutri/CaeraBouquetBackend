@@ -1,16 +1,20 @@
 from rest_framework import serializers
 from django.conf import settings
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
+
 from .models import Order, Transaction
 from products.models import Product
 
+
 class OrderItemSerializer(serializers.Serializer):
     """Memvalidasi item produk individu dalam sebuah pesanan."""
+
     product_id = serializers.IntegerField()
     quantity = serializers.IntegerField(
         min_value=1,
         max_value=settings.MAX_ORDER_QUANTITY,
     )
+
 
 class OrderCreateSerializer(serializers.Serializer):
     """Memvalidasi data input untuk pembuatan pesanan baru.
@@ -53,6 +57,7 @@ class OrderCreateSerializer(serializers.Serializer):
             )
         return data
 
+
 class TransactionDetailSerializer(serializers.ModelSerializer):
     """
     Menyajikan detail item produk dalam sebuah transaksi.
@@ -60,11 +65,13 @@ class TransactionDetailSerializer(serializers.ModelSerializer):
     Serializer ini memberikan informasi spesifik mengenai nama produk,
     jumlah yang dibeli, serta harga satuan saat transaksi terjadi.
     """
+
     product_name = serializers.CharField(source='product.name', read_only=True)
 
     class Meta:
         model = Transaction
         fields = ('product_name', 'quantity', 'price')
+
 
 class OrderListSerializer(serializers.ModelSerializer):
     """
@@ -73,6 +80,7 @@ class OrderListSerializer(serializers.ModelSerializer):
     Serializer ini menyediakan data lengkap mengenai daftar produk yang dibeli,
     total harga, status pesanan, serta waktu pembuatannya.
     """
+
     order_id = serializers.IntegerField(source='id')
     items = TransactionDetailSerializer(source='transactions', many=True, read_only=True)
 

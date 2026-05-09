@@ -1,4 +1,5 @@
 import logging
+
 from django.http import JsonResponse
 
 security_logger = logging.getLogger('caera.security')

@@ -1,10 +1,12 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 User = get_user_model()
+
 
 class RegisterSerializer(serializers.ModelSerializer):
     """Memvalidasi data registrasi dan membuat akun pengguna baru.
@@ -58,6 +60,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             password=validated_data['password']
         )
         return user
+
 
 class UserProfileSerializer(serializers.ModelSerializer):
     """Menyajikan data profil ringkas untuk pengguna yang sedang login.

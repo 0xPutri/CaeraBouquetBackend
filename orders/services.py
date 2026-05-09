@@ -1,19 +1,22 @@
 import logging
 from decimal import Decimal
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+
 from products.models import Product
 from .models import Order, Transaction
 
 logger = logging.getLogger('orders')
 security_logger = logging.getLogger('caera.security')
 
+
 def get_locked_products_by_id(product_ids):
     """
     Mengambil data produk dan menguncinya untuk proses transaksi.
-    
+
     Fungsi ini memastikan data produk diurutkan berdasarkan ID guna mencegah
     terjadinya kebuntuan (deadlock) saat ada banyak pesanan bersamaan.
 
@@ -24,6 +27,7 @@ def get_locked_products_by_id(product_ids):
         QuerySet: Kumpulan produk yang telah dikunci.
     """
     return Product.objects.select_for_update().filter(id__in=product_ids).order_by('id')
+
 
 def ensure_order_total_allowed(total_price, user_id=None, log_message="Pembuatan pesanan ditolak karena melebihi batas total harga."):
     """
@@ -46,6 +50,7 @@ def ensure_order_total_allowed(total_price, user_id=None, log_message="Pembuatan
             extra={"user_id": str(user_id) if user_id else None, "total_price": str(total_price)}
         )
         raise ValidationError("Total harga pesanan melebihi batas maksimum yang diizinkan.")
+
 
 def create_order_record(user, total_price, delivery_address, notes):
     """
@@ -70,6 +75,7 @@ def create_order_record(user, total_price, delivery_address, notes):
         notes=notes,
     )
 
+
 def create_transaction_and_reduce_stock(order, product, quantity, price):
     """
     Mencatat rincian transaksi dan menyesuaikan ketersediaan stok.
@@ -92,6 +98,7 @@ def create_transaction_and_reduce_stock(order, product, quantity, price):
     product.stock -= quantity
     product.save(update_fields=['stock'])
 
+
 def quantity_by_product(transactions):
     """
     Menghitung total jumlah setiap produk dalam sebuah pesanan.
@@ -111,6 +118,7 @@ def quantity_by_product(transactions):
             qty_map[tx.product_id] = qty_map.get(tx.product_id, 0) + tx.quantity
     return qty_map
 
+
 def stock_delta(current_qty, previous_qty):
     """
     Menghitung selisih jumlah stok untuk sinkronisasi inventaris.
@@ -126,6 +134,7 @@ def stock_delta(current_qty, previous_qty):
         int: Selisih kuantitas stok.
     """
     return current_qty - previous_qty
+
 
 def snapshot_order_transactions(order):
     """
@@ -161,6 +170,7 @@ def snapshot_order_transactions(order):
     )
     return snapshot
 
+
 def create_order(*, user, items, delivery_address='', notes=''):
     """
     Memproses pembuatan pesanan untuk banyak produk sekaligus.
@@ -193,10 +203,10 @@ def create_order(*, user, items, delivery_address='', notes=''):
     for item in items:
         p_id = item['product_id']
         qty = item['quantity']
-        
+
         if p_id not in products_map:
             raise ValidationError(f"Produk dengan ID {p_id} tidak ditemukan.")
-        
+
         product = products_map[p_id]
         if product.stock < qty:
             security_logger.warning(
@@ -204,7 +214,7 @@ def create_order(*, user, items, delivery_address='', notes=''):
                 extra={"user_id": str(user.id), "product_id": p_id, "requested_quantity": qty}
             )
             raise ValidationError(f"Stok produk '{product.name}' tidak mencukupi.")
-        
+
         item_total = product.price * qty
         total_price += item_total
         validated_items.append({
@@ -226,6 +236,8 @@ def create_order(*, user, items, delivery_address='', notes=''):
         extra={"user_id": str(user.id), "order_id": order.id, "item_count": len(validated_items)}
     )
     return order
+
+
 @transaction.atomic
 def create_order_with_single_transaction(*, user, product_id, quantity, delivery_address='', notes=''):
     """
@@ -270,6 +282,7 @@ def create_order_with_single_transaction(*, user, product_id, quantity, delivery
         extra={"user_id": str(user.id), "order_id": order.id, "product_id": product.id, "quantity": quantity}
     )
     return order, product
+
 
 @transaction.atomic
 def sync_order_inventory(order, previous_snapshot):

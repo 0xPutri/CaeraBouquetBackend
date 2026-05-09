@@ -1,4 +1,5 @@
 import logging
+
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -6,6 +7,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, inline_serializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
 from .serializers import RegisterSerializer, UserProfileSerializer, VerifiedEmailTokenObtainPairSerializer
 
 User = get_user_model()
@@ -142,6 +144,7 @@ class RegisterView(generics.CreateAPIView):
             status=status.HTTP_201_CREATED
         )
 
+
 @extend_schema(
     tags=['Pengguna'],
     summary='Mengambil profil pengguna saat ini',
@@ -245,6 +248,7 @@ class LoginView(TokenObtainPairView):
 from django.http import HttpResponseRedirect
 from django.conf import settings
 
+
 @extend_schema(
     tags=['Autentikasi'],
     summary='Memverifikasi email pengguna',
@@ -285,13 +289,13 @@ class VerifyEmailView(generics.GenericAPIView):
             HttpResponseRedirect: Mengarahkan pengguna ke antarmuka frontend.
         """
         token = request.query_params.get('token', '').strip()
-        
+
         raw_url = str(getattr(settings, 'FRONTEND_URL', 'http://localhost:3000'))
         frontend_url = raw_url.lstrip('=').strip(' \'"').rstrip('/')
-        
+
         if not frontend_url.startswith('http'):
             frontend_url = 'https://' + frontend_url
-        
+
         if not token:
             security_logger.warning(
                 "Verifikasi email gagal karena token tidak diberikan.",

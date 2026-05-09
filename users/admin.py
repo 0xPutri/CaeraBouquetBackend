@@ -2,9 +2,11 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth.models import Group
 from unfold.admin import ModelAdmin
+
 from .models import User, CustomGroup
 
 admin.site.unregister(Group)
+
 
 class UserAdminForm(forms.ModelForm):
     """Menyediakan bantuan isian untuk form pengguna di Django Admin.
@@ -26,6 +28,7 @@ class UserAdminForm(forms.ModelForm):
             'is_staff': 'Izinkan akun mengakses Django Admin.',
             'is_superuser': 'Berikan akses penuh ke seluruh sistem.',
         }
+
 
 @admin.register(User)
 class UserAdmin(ModelAdmin):
@@ -56,7 +59,9 @@ class UserAdmin(ModelAdmin):
             str: Teks statis yang menginformasikan bahwa sandi disembunyikan.
         """
         return "********"
+
     obscured_password.short_description = 'Kata Sandi'
+
 
 @admin.register(CustomGroup)
 class CustomGroupAdmin(ModelAdmin):

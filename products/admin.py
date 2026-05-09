@@ -1,10 +1,13 @@
 import logging
+
 from django import forms
 from django.contrib import admin
 from unfold.admin import ModelAdmin
+
 from .models import Category, Product
 
 audit_logger = logging.getLogger('caera.security')
+
 
 class CategoryAdminForm(forms.ModelForm):
     """Menyediakan bantuan isian untuk pengelolaan kategori produk.
@@ -41,6 +44,7 @@ class ProductAdminForm(forms.ModelForm):
             'stock': 'Jumlah stok yang tersedia.',
             'image_url': 'URL gambar produk.',
         }
+
 
 @admin.register(Category)
 class CategoryAdmin(ModelAdmin):
@@ -83,6 +87,7 @@ class CategoryAdmin(ModelAdmin):
             extra={"admin_user": str(request.user.id), "category_id": obj.id, "category_name": obj.name}
         )
         super().delete_model(request, obj)
+
 
 @admin.register(Product)
 class ProductAdmin(ModelAdmin):

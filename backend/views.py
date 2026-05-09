@@ -1,4 +1,5 @@
 import logging
+
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.permissions import AllowAny
@@ -15,6 +16,7 @@ health_check_response = inline_serializer(
         'timestamp': serializers.DateTimeField(),
     },
 )
+
 
 class HealthCheckView(APIView):
     """Menyediakan endpoint sederhana untuk memeriksa kesehatan aplikasi.

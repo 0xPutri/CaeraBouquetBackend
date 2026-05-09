@@ -1,4 +1,5 @@
 import logging
+
 from rest_framework import generics, status, filters
 from rest_framework import serializers
 from rest_framework.response import Response
@@ -7,6 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction, DatabaseError
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, extend_schema_view, inline_serializer
+
 from .models import Order
 from .services import create_order, create_order_with_single_transaction
 from .throttles import OrderCreateUserRateThrottle
@@ -22,6 +24,7 @@ order_create_success_response = inline_serializer(
         'status': serializers.CharField(help_text='Status awal pesanan setelah dibuat.'),
     },
 )
+
 
 @extend_schema_view(
     get=extend_schema(
@@ -144,7 +147,7 @@ order_create_success_response = inline_serializer(
 class OrderListCreateView(generics.ListCreateAPIView):
     """Menampilkan riwayat pesanan dan membuat pesanan baru.
 
-    View ini menangani pembuatan pesanan pengguna, mendukung satu 
+    View ini menangani pembuatan pesanan pengguna, mendukung satu
     atau banyak produk dalam satu transaksi yang bersifat atomik.
     """
 
@@ -176,7 +179,7 @@ class OrderListCreateView(generics.ListCreateAPIView):
         if self.request.method == 'POST':
             return OrderCreateSerializer
         return OrderListSerializer
-    
+
     def get_queryset(self):
         """Mengambil daftar pesanan milik pengguna yang sedang login.
 
@@ -190,7 +193,7 @@ class OrderListCreateView(generics.ListCreateAPIView):
             extra={"user_id": str(self.request.user.id)}
         )
         return Order.objects.filter(user=self.request.user).prefetch_related('transactions__product')
-    
+
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         """

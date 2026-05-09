@@ -1,11 +1,14 @@
 import json
 from datetime import timedelta
+
 from django.db.models import Sum, Count
 from django.db.models.functions import TruncDate
 from django.utils import timezone
+
 from orders.models import Order
 from products.models import Product
 from users.models import User
+
 
 def dashboard_callback(request, context):
     """
