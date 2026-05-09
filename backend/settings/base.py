@@ -318,8 +318,16 @@ LOGGING = {
 # Theme Configuration
 UNFOLD = {
     "SITE_TITLE": "Caera Bouquet Admin",
-    "SITE_HEADER": "Caera Bouquet",
-    "SITE_SYMBOL": "local_florist",
+    "SITE_HEADER": "Caera Bouquet Admin",
+    "SITE_ICON": lambda request: static("icons/logo.png"),
+    "SITE_FAVICONS": [
+        {
+            "rel": "icon",
+            "sizes": "32x32",
+            "type": "image/x-icon",
+            "href": lambda request: static("icons/favicon.ico"),
+        },
+    ],
     "THEME": "light",
     "DASHBOARD_CALLBACK": "backend.dashboard.dashboard_callback",
     "STYLES": [
