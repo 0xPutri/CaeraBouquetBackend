@@ -17,15 +17,21 @@ LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
 
 # External services
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
-ML_SERVICE_BASE_URL = os.environ.get('ML_SERVICE_BASE_URL', 'https://www.ml.caerabouquet.shop')
+ML_SERVICE_BASE_URL = os.environ.get('ML_SERVICE_BASE_URL', 'http://ml.localhost:8000')
 
 # Order guardrails
 MAX_ORDER_QUANTITY = int(os.environ.get('MAX_ORDER_QUANTITY', 50))
 MAX_ORDER_TOTAL_PRICE = Decimal(os.environ.get('MAX_ORDER_TOTAL_PRICE', '50000000.00'))
 ORDER_CREATE_RATE_LIMIT = os.environ.get('ORDER_CREATE_RATE_LIMIT', '10/hour')
+
+# Local URLs
 EMAIL_VERIFICATION_BASE_URL = os.environ.get(
     'EMAIL_VERIFICATION_BASE_URL',
     'http://127.0.0.1:8000/api/auth/verify-email/'
+)
+PASSWORD_RESET_BASE_URL = os.environ.get(
+    'PASSWORD_RESET_BASE_URL',
+    'http://localhost:3000/reset-password'
 )
 
 # Request/upload size guardrails

@@ -103,3 +103,49 @@ class VerifiedEmailTokenObtainPairSerializer(TokenObtainPairSerializer):
             self.fail('email_belum_terverifikasi')
 
         return data
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """
+    Memvalidasi permintaan email untuk mengatur ulang kata sandi.
+
+    Serializer ini memastikan format email benar sebelum proses pengiriman
+    tautan pemulihan akun dilakukan.
+    """
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """
+    Memvalidasi token dan kata sandi baru untuk pemulihan akun.
+
+    Serializer ini memverifikasi bahwa token reset valid dan kedua kolom
+    kata sandi baru saling cocok sebelum sandi diubah.
+    """
+    token = serializers.CharField()
+    uid = serializers.CharField()
+    new_password = serializers.CharField(write_only=True, min_length=8, style={'input_type': 'password'})
+    confirm_password = serializers.CharField(write_only=True, min_length=8, style={'input_type': 'password'})
+
+    def validate(self, data):
+        """
+        Memeriksa kecocokan konfirmasi kata sandi.
+
+        Args:
+            data (dict): Data kata sandi baru yang akan divalidasi.
+
+        Returns:
+            dict: Data yang telah divalidasi.
+
+        Raises:
+            ValidationError: Jika kata sandi tidak cocok atau tidak valid.
+        """
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError({"confirm_password": "Kata sandi tidak cocok."})
+        
+        try:
+            validate_password(data['new_password'])
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"new_password": list(exc.messages)})
+
+        return data

@@ -5,10 +5,12 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.http import urlsafe_base64_decode
+from django.utils.encoding import force_str
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, inline_serializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-
-from .serializers import RegisterSerializer, UserProfileSerializer, VerifiedEmailTokenObtainPairSerializer
+from .serializers import RegisterSerializer, UserProfileSerializer, VerifiedEmailTokenObtainPairSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer
 
 User = get_user_model()
 
@@ -386,3 +388,115 @@ class TokenRefreshDocsView(TokenRefreshView):
                 extra={"ip": request.META.get("REMOTE_ADDR"), "status_code": response.status_code}
             )
         return response
+
+
+@extend_schema(
+    tags=['Autentikasi'],
+    summary='Meminta tautan atur ulang kata sandi',
+    description='Endpoint ini memvalidasi email pengguna dan mengirimkan tautan dengan token aman untuk mengatur ulang kata sandi.',
+    request=PasswordResetRequestSerializer,
+    responses={
+        200: OpenApiResponse(description='Instruksi atur ulang kata sandi telah dikirim ke email (jika terdaftar).'),
+        400: OpenApiResponse(description='Format email tidak valid.'),
+    },
+)
+class PasswordResetRequestView(generics.GenericAPIView):
+    """
+    Menangani permintaan pemulihan kata sandi pengguna.
+
+    View ini menerima alamat email, memeriksa keberadaannya di database,
+    dan mengirimkan email berisi tautan atur ulang jika akun ditemukan.
+    """
+    permission_classes = (AllowAny,)
+    serializer_class = PasswordResetRequestSerializer
+
+    def post(self, request, *args, **kwargs):
+        """
+        Memproses permintaan pengiriman email reset sandi.
+
+        Args:
+            request (Request): Objek request HTTP yang memuat data email.
+            *args: Argumen tambahan dari kelas induk.
+            **kwargs: Argumen keyword tambahan dari kelas induk.
+
+        Returns:
+            Response: Konfirmasi bahwa permintaan telah diproses.
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        email = serializer.validated_data['email']
+        user = User.objects.filter(email=email).first()
+        
+        if user:
+            user.send_password_reset_email()
+            
+        return Response(
+            {"message": "Jika email terdaftar, instruksi atur ulang kata sandi telah dikirim."},
+            status=status.HTTP_200_OK
+        )
+
+
+@extend_schema(
+    tags=['Autentikasi'],
+    summary='Mengonfirmasi kata sandi baru',
+    description='Endpoint ini memvalidasi token dan menyimpan kata sandi baru pengguna.',
+    request=PasswordResetConfirmSerializer,
+    responses={
+        200: OpenApiResponse(description='Kata sandi berhasil diatur ulang.'),
+        400: OpenApiResponse(description='Data tidak valid atau token kedaluwarsa.'),
+    },
+)
+class PasswordResetConfirmView(generics.GenericAPIView):
+    """
+    Menangani proses perubahan kata sandi dengan token.
+
+    View ini memvalidasi token keamanan dan menyetel kata sandi baru
+    untuk pengguna yang memintanya.
+    """
+    permission_classes = (AllowAny,)
+    serializer_class = PasswordResetConfirmSerializer
+
+    def post(self, request, *args, **kwargs):
+        """
+        Memproses penggantian kata sandi menggunakan token.
+
+        Args:
+            request (Request): Objek request HTTP yang memuat token dan kata sandi baru.
+            *args: Argumen tambahan dari kelas induk.
+            **kwargs: Argumen keyword tambahan dari kelas induk.
+
+        Returns:
+            Response: Konfirmasi bahwa kata sandi telah diperbarui atau pesan galat.
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        token = serializer.validated_data['token']
+        uidb64 = serializer.validated_data['uid']
+        new_password = serializer.validated_data['new_password']
+        
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            user = None
+            
+        token_generator = PasswordResetTokenGenerator()
+        if user is not None and token_generator.check_token(user, token):
+            user.set_password(new_password)
+            user.save(update_fields=['password'])
+            logger.info("Kata sandi berhasil diatur ulang.", extra={"user_id": str(user.id)})
+            return Response(
+                {"message": "Kata sandi berhasil diatur ulang. Silakan login kembali."},
+                status=status.HTTP_200_OK
+            )
+            
+        security_logger.warning(
+            "Percobaan atur ulang kata sandi gagal karena token tidak valid.",
+            extra={"ip": request.META.get("REMOTE_ADDR"), "uid": uidb64}
+        )
+        return Response(
+            {"error": "Tautan atur ulang kata sandi tidak valid atau sudah kedaluwarsa."},
+            status=status.HTTP_400_BAD_REQUEST
+        )

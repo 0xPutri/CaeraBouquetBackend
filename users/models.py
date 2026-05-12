@@ -3,6 +3,9 @@ import logging
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin, Group
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 from django.core.mail import send_mail
 from django.db import models
 
@@ -128,6 +131,46 @@ class User(AbstractBaseUser, PermissionsMixin):
 
         logger.info(
             "Email verifikasi berhasil dikirim.",
+            extra={"user_id": str(self.id), "email": self.email}
+        )
+
+    def send_password_reset_email(self):
+        """
+        Mengirim tautan atur ulang kata sandi ke email pengguna.
+
+        Fungsi ini menghasilkan token yang aman dan memuatnya ke dalam
+        tautan yang akan dikirim ke pengguna.
+        """
+        token_generator = PasswordResetTokenGenerator()
+        token = token_generator.make_token(self)
+        uid = urlsafe_base64_encode(force_bytes(self.pk))
+
+        reset_url = (
+            f"{settings.PASSWORD_RESET_BASE_URL}"
+            f"?uid={uid}&token={token}"
+        )
+        subject = "Atur Ulang Kata Sandi Akun Caera Bouquet"
+        message = (
+            f"Halo {self.name},\n\n"
+            "Kami menerima permintaan untuk mengatur ulang kata sandi akun Anda.\n"
+            "Silakan klik tautan berikut untuk membuat kata sandi baru:\n\n"
+            f"{reset_url}\n\n"
+            "Tautan ini hanya berlaku sementara untuk alasan keamanan.\n"
+            "Jika Anda tidak meminta pengaturan ulang kata sandi, abaikan email ini.\n\n"
+            "Salam hangat,\n"
+            "Tim Caera Bouquet"
+        )
+
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[self.email],
+            fail_silently=False,
+        )
+
+        logger.info(
+            "Email atur ulang kata sandi berhasil dikirim.",
             extra={"user_id": str(self.id), "email": self.email}
         )
 
