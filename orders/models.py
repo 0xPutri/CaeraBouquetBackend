@@ -72,3 +72,17 @@ class Transaction(models.Model):
         """
         product_name = self.product.name if self.product else "Produk Dihapus"
         return f"{self.quantity}x {product_name} (Order #{self.order.id})"
+
+
+class SalesReport(Order):
+    """
+    Model proxy untuk menyajikan laporan penjualan.
+
+    Model ini tidak membuat tabel baru di database, melainkan menggunakan
+    tabel Order yang sudah ada untuk dikonfigurasi secara khusus di antarmuka
+    admin pelaporan agar bersifat read-only dan analitis.
+    """
+    class Meta:
+        proxy = True
+        verbose_name = "Laporan Penjualan"
+        verbose_name_plural = "Laporan Penjualan"

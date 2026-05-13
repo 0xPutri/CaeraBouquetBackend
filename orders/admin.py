@@ -1,11 +1,13 @@
+import csv
 import logging
 
 from django import forms
+from django.http import HttpResponse
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 from django.db import transaction
 
-from .models import Order, Transaction
+from .models import Order, Transaction, SalesReport
 from products.models import Product
 from .services import snapshot_order_transactions, sync_order_inventory
 
@@ -188,3 +190,102 @@ class OrderAdmin(ModelAdmin):
             extra={"admin_user": str(request.user.id), "order_id": obj.id, "status": obj.status}
         )
         super().delete_model(request, obj)
+
+@admin.action(description='Unduh Laporan (CSV)')
+def export_to_csv(modeladmin, request, queryset):
+    """
+    Mengekspor data laporan penjualan yang dipilih ke format CSV.
+
+    Fungsi ini memudahkan admin untuk mengunduh laporan ke dalam spreadsheet
+    berdasarkan data yang sudah disaring di panel antarmuka.
+
+    Args:
+        modeladmin (ModelAdmin): Instansiasi dari ModelAdmin terkait.
+        request (HttpRequest): Request dari sisi klien admin.
+        queryset (QuerySet): Kumpulan data yang dipilih oleh admin.
+
+    Returns:
+        HttpResponse: Respons berisi file CSV untuk diunduh.
+    """
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="laporan_penjualan.csv"'
+    writer = csv.writer(response)
+    
+    writer.writerow(['ID Pesanan', 'Pelanggan', 'Status', 'Total Harga', 'Tanggal Pesanan'])
+    
+    for order in queryset.select_related('user'):
+        writer.writerow([
+            order.id, 
+            order.user.name, 
+            order.get_status_display(), 
+            order.total_price, 
+            order.created_at.strftime('%Y-%m-%d %H:%M:%S')
+        ])
+        
+    audit_logger.info(
+        "Admin mengunduh laporan penjualan dalam format CSV.",
+        extra={"admin_user": str(request.user.id), "total_records": queryset.count()}
+    )
+    return response
+
+@admin.register(SalesReport)
+class SalesReportAdmin(ModelAdmin):
+    """
+    Menyajikan data pelaporan penjualan di Django Admin.
+
+    Model ini diformat agar bersifat read-only untuk mencegah perubahan
+    data yang tidak disengaja. Di sini tersedia pula navigasi periode 
+    waktu (date_hierarchy) dan aksi unduh laporan CSV.
+    """
+    list_display = ('id', 'user', 'status', 'total_price', 'created_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('user__email', 'user__name')
+    date_hierarchy = 'created_at'
+    actions = [export_to_csv]
+    
+    def has_add_permission(self, request):
+        """
+        Mencegah penambahan data laporan baru.
+
+        Fungsi ini menonaktifkan fitur tambah agar halaman pelaporan
+        sepenuhnya bersifat hanya-baca (read-only).
+
+        Args:
+            request (HttpRequest): Objek request dari Django Admin.
+
+        Returns:
+            bool: Selalu mengembalikan False.
+        """
+        return False
+        
+    def has_change_permission(self, request, obj=None):
+        """
+        Mencegah modifikasi data pelaporan yang sudah ada.
+
+        Fungsi ini mengunci halaman detail laporan agar riwayat
+        penjualan tidak dapat diubah oleh siapapun.
+
+        Args:
+            request (HttpRequest): Objek request dari Django Admin.
+            obj (Model, optional): Objek laporan yang dipilih.
+
+        Returns:
+            bool: Selalu mengembalikan False.
+        """
+        return False
+        
+    def has_delete_permission(self, request, obj=None):
+        """
+        Mencegah penghapusan data dari halaman pelaporan.
+
+        Fungsi ini menghilangkan tombol hapus demi menjaga integritas
+        dan keutuhan riwayat transaksi secara historis.
+
+        Args:
+            request (HttpRequest): Objek request dari Django Admin.
+            obj (Model, optional): Objek laporan yang dipilih.
+
+        Returns:
+            bool: Selalu mengembalikan False.
+        """
+        return False

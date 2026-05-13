@@ -363,9 +363,14 @@ UNFOLD = {
                 "separator": True,
                 "items": [
                     {
-                        "title": "Daftar Pesanan",
+                        "title": "Pesanan",
                         "icon": "receipt_long",
                         "link": reverse_lazy("admin:orders_order_changelist"),
+                    },
+                    {
+                        "title": "Laporan Transaksi",
+                        "icon": "analytics",
+                        "link": reverse_lazy("admin:orders_salesreport_changelist"),
                     },
                 ],
             },
