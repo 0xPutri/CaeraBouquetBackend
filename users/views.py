@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
 from django.utils.encoding import force_str
-from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, inline_serializer
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, extend_schema_view, inline_serializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .serializers import RegisterSerializer, UserProfileSerializer, VerifiedEmailTokenObtainPairSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer
 
@@ -147,20 +147,42 @@ class RegisterView(generics.CreateAPIView):
         )
 
 
-@extend_schema(
-    tags=['Pengguna'],
-    summary='Mengambil profil pengguna saat ini',
-    description='Endpoint ini mengembalikan data profil milik pengguna yang sedang terautentikasi.',
-    responses={
-        200: UserProfileSerializer,
-        401: OpenApiResponse(description='Autentikasi diperlukan untuk mengakses profil pengguna.'),
-    },
+@extend_schema_view(
+    get=extend_schema(
+        tags=['Pengguna'],
+        summary='Mengambil profil pengguna saat ini',
+        description='Endpoint ini mengembalikan data profil milik pengguna yang sedang terautentikasi.',
+        responses={
+            200: UserProfileSerializer,
+            401: OpenApiResponse(description='Autentikasi diperlukan untuk mengakses profil pengguna.'),
+        },
+    ),
+    put=extend_schema(
+        tags=['Pengguna'],
+        summary='Memperbarui seluruh profil pengguna',
+        description='Endpoint ini memungkinkan pengguna untuk memperbarui seluruh informasi profil mereka.',
+        responses={
+            200: UserProfileSerializer,
+            400: OpenApiResponse(description='Data yang dikirimkan tidak valid.'),
+            401: OpenApiResponse(description='Autentikasi diperlukan.'),
+        },
+    ),
+    patch=extend_schema(
+        tags=['Pengguna'],
+        summary='Memperbarui sebagian profil pengguna',
+        description='Endpoint ini memungkinkan pengguna untuk memperbarui sebagian informasi profil mereka, seperti nama atau nomor telepon.',
+        responses={
+            200: UserProfileSerializer,
+            400: OpenApiResponse(description='Data yang dikirimkan tidak valid.'),
+            401: OpenApiResponse(description='Autentikasi diperlukan.'),
+        },
+    )
 )
-class UserProfileView(generics.RetrieveAPIView):
-    """Mengambil profil milik pengguna yang sedang terautentikasi.
+class UserProfileView(generics.RetrieveUpdateAPIView):
+    """Mengambil dan memperbarui profil milik pengguna yang sedang terautentikasi.
 
-    View ini digunakan untuk menampilkan data identitas dasar pengguna
-    tanpa perlu mengirimkan parameter tambahan.
+    View ini digunakan untuk menampilkan serta mengubah data identitas dasar
+    pengguna tanpa perlu mengirimkan parameter tambahan di URL.
     """
     serializer_class = UserProfileSerializer
     permission_classes = (IsAuthenticated,)
@@ -171,11 +193,28 @@ class UserProfileView(generics.RetrieveAPIView):
         Returns:
             User: Pengguna yang sedang login pada request saat ini.
         """
+        if self.request.method == 'GET':
+            logger.info(
+                "Profil pengguna berhasil diakses.",
+                extra={"user_id": str(self.request.user.id)}
+            )
+        return self.request.user
+
+    def perform_update(self, serializer):
+        """
+        Menyimpan pembaruan profil dan mencatat aktivitasnya.
+
+        Fungsi ini dipanggil setelah data yang dikirim berhasil divalidasi,
+        lalu menyimpan perubahan tersebut ke dalam database.
+
+        Args:
+            serializer (Serializer): Serializer yang telah divalidasi.
+        """
+        super().perform_update(serializer)
         logger.info(
-            "Profil pengguna berhasil diakses.",
+            "Profil pengguna berhasil diperbarui.",
             extra={"user_id": str(self.request.user.id)}
         )
-        return self.request.user
 
 
 @extend_schema(

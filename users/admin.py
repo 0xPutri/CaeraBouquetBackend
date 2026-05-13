@@ -24,6 +24,7 @@ class UserAdminForm(forms.ModelForm):
             'is_email_verified': 'Tandai jika email sudah terverifikasi.',
             'email': 'Email ini digunakan untuk login.',
             'name': 'Nama yang tampil pada profil dan pesanan.',
+            'phone_number': 'Nomor telepon atau WhatsApp yang bisa dihubungi.',
             'is_active': 'Nonaktifkan jika akun tidak boleh masuk.',
             'is_staff': 'Izinkan akun mengakses Django Admin.',
             'is_superuser': 'Berikan akses penuh ke seluruh sistem.',
@@ -40,8 +41,8 @@ class UserAdmin(ModelAdmin):
 
     form = UserAdminForm
     exclude = ('groups', 'user_permissions', 'password')
-    list_display = ('email', 'name', 'is_staff', 'is_email_verified', 'created_at')
-    search_fields = ('email', 'name')
+    list_display = ('email', 'name', 'phone_number', 'is_staff', 'is_email_verified', 'created_at')
+    search_fields = ('email', 'name', 'phone_number')
     list_filter = ('is_staff', 'is_email_verified', 'is_active')
     readonly_fields = ('obscured_password',)
 

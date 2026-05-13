@@ -19,7 +19,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('email', 'name', 'password')
+        fields = ('email', 'name', 'phone_number', 'password')
 
     def validate_password(self, value):
         """Memeriksa kekuatan kata sandi sesuai validator Django.
@@ -57,6 +57,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(
             email=validated_data['email'],
             name=validated_data['name'],
+            phone_number=validated_data.get('phone_number'),
             password=validated_data['password']
         )
         return user
@@ -66,12 +67,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
     """Menyajikan data profil ringkas untuk pengguna yang sedang login.
 
     Serializer ini mengembalikan informasi identitas dasar yang aman
-    ditampilkan pada endpoint profil pengguna.
+    ditampilkan pada endpoint profil pengguna serta memungkinkan pembaruan.
     """
 
     class Meta:
         model = User
-        fields = ('id', 'name', 'email')
+        fields = ('id', 'name', 'email', 'phone_number')
+        read_only_fields = ('id', 'email')
 
 
 class VerifiedEmailTokenObtainPairSerializer(TokenObtainPairSerializer):

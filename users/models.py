@@ -19,12 +19,13 @@ class UserManager(BaseUserManager):
     dengan validasi email dasar yang dibutuhkan sistem autentikasi.
     """
 
-    def create_user(self, email, name, password=None, **extra_fields):
+    def create_user(self, email, name, phone_number=None, password=None, **extra_fields):
         """Membuat akun pengguna baru dengan email sebagai identitas utama.
 
         Args:
             email (str): Alamat email yang akan digunakan untuk login.
             name (str): Nama pengguna yang disimpan pada profil akun.
+            phone_number (str | None): Nomor telepon atau WhatsApp pengguna.
             password (str | None): Kata sandi awal untuk akun pengguna.
             **extra_fields: Field tambahan yang ingin disimpan ke model.
 
@@ -37,17 +38,18 @@ class UserManager(BaseUserManager):
         if not email:
             raise ValueError("Email wajib diisi")
         email = self.normalize_email(email)
-        user = self.model(email=email, name=name, **extra_fields)
+        user = self.model(email=email, name=name, phone_number=phone_number, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
     
-    def create_superuser(self, email, name, password=None, **extra_fields):
+    def create_superuser(self, email, name, phone_number=None, password=None, **extra_fields):
         """Membuat akun superuser dengan hak akses administratif.
 
         Args:
             email (str): Alamat email untuk akun administrator.
             name (str): Nama administrator yang akan disimpan.
+            phone_number (str | None): Nomor telepon atau WhatsApp administrator.
             password (str | None): Kata sandi untuk akun administrator.
             **extra_fields: Field tambahan yang diteruskan ke model pengguna.
 
@@ -56,7 +58,7 @@ class UserManager(BaseUserManager):
         """
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
-        return self.create_user(email, name, password, **extra_fields)
+        return self.create_user(email, name, phone_number, password, **extra_fields)
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -69,6 +71,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, verbose_name="ID Pengguna")
     email = models.EmailField(unique=True, verbose_name="Alamat Email")
     name = models.CharField(max_length=255, verbose_name="Nama Lengkap")
+    phone_number = models.CharField(max_length=20, blank=True, null=True, verbose_name="Nomor WhatsApp")
 
     is_active = models.BooleanField(default=True, verbose_name="Akun Aktif")
     is_staff = models.BooleanField(default=False, verbose_name="Akses Staff Admin")
