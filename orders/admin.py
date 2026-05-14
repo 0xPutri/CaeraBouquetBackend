@@ -1,15 +1,16 @@
-import csv
 import logging
 
 from django import forms
 from django.http import HttpResponse
 from django.contrib import admin
+from django.utils import timezone
 from unfold.admin import ModelAdmin, TabularInline
 from django.db import transaction
 
 from .models import Order, Transaction, SalesReport
 from products.models import Product
 from .services import snapshot_order_transactions, sync_order_inventory
+from .utils import generate_sales_report_pdf
 
 audit_logger = logging.getLogger('caera.security')
 
@@ -191,13 +192,13 @@ class OrderAdmin(ModelAdmin):
         )
         super().delete_model(request, obj)
 
-@admin.action(description='Unduh Laporan (CSV)')
-def export_to_csv(modeladmin, request, queryset):
+@admin.action(description='Unduh Laporan (PDF)')
+def export_to_pdf(modeladmin, request, queryset):
     """
-    Mengekspor data laporan penjualan yang dipilih ke format CSV.
+    Mengekspor data laporan penjualan yang dipilih ke format PDF.
 
-    Fungsi ini memudahkan admin untuk mengunduh laporan ke dalam spreadsheet
-    berdasarkan data yang sudah disaring di panel antarmuka.
+    Fungsi ini memudahkan admin untuk mengunduh laporan penjualan
+    ke dalam dokumen PDF berstandar industri.
 
     Args:
         modeladmin (ModelAdmin): Instansiasi dari ModelAdmin terkait.
@@ -205,25 +206,17 @@ def export_to_csv(modeladmin, request, queryset):
         queryset (QuerySet): Kumpulan data yang dipilih oleh admin.
 
     Returns:
-        HttpResponse: Respons berisi file CSV untuk diunduh.
+        HttpResponse: Respons berisi file PDF untuk diunduh.
     """
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="laporan_penjualan.csv"'
-    writer = csv.writer(response)
+    response = HttpResponse(content_type='application/pdf')
+    date_str = timezone.localdate().strftime('%Y-%m-%d')
+    filename = f"caera-bouquet-sales-report-{date_str}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
-    writer.writerow(['ID Pesanan', 'Pelanggan', 'Status', 'Total Harga', 'Tanggal Pesanan'])
+    generate_sales_report_pdf(queryset, response)
     
-    for order in queryset.select_related('user'):
-        writer.writerow([
-            order.id, 
-            order.user.name, 
-            order.get_status_display(), 
-            order.total_price, 
-            order.created_at.strftime('%Y-%m-%d %H:%M:%S')
-        ])
-        
     audit_logger.info(
-        "Admin mengunduh laporan penjualan dalam format CSV.",
+        "Admin mengunduh laporan penjualan dalam format PDF.",
         extra={"admin_user": str(request.user.id), "total_records": queryset.count()}
     )
     return response
@@ -235,13 +228,13 @@ class SalesReportAdmin(ModelAdmin):
 
     Model ini diformat agar bersifat read-only untuk mencegah perubahan
     data yang tidak disengaja. Di sini tersedia pula navigasi periode 
-    waktu (date_hierarchy) dan aksi unduh laporan CSV.
+    waktu (date_hierarchy) dan aksi unduh laporan PDF.
     """
     list_display = ('id', 'user', 'status', 'total_price', 'created_at')
     list_filter = ('status', 'created_at')
     search_fields = ('user__email', 'user__name')
     date_hierarchy = 'created_at'
-    actions = [export_to_csv]
+    actions = [export_to_pdf]
     
     def has_add_permission(self, request):
         """
