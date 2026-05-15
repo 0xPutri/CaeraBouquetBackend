@@ -129,11 +129,59 @@ class OrderAdmin(ModelAdmin):
     """
 
     form = OrderAdminForm
-    list_display = ('id', 'user', 'status', 'total_price', 'created_at')
+    list_display = ('id', 'customer_name', 'customer_email', 'customer_phone', 'status', 'total_price', 'created_at')
     list_filter = ('status', 'created_at')
-    search_fields = ('user__email', 'user__name')
+    search_fields = ('user__email', 'user__name', 'user__phone_number')
     inlines = [TransactionInline]
-    readonly_fields = ('total_price',)
+    readonly_fields = ('customer_name', 'customer_email', 'customer_phone', 'total_price')
+
+    @admin.display(description='Nama Pelanggan')
+    def customer_name(self, obj):
+        """
+        Mengambil nama pelanggan dari data pengguna terkait.
+
+        Fungsi ini memudahkan admin melihat nama pelanggan secara langsung
+        pada tabel daftar pesanan.
+
+        Args:
+            obj (Order): Objek pesanan yang sedang ditampilkan.
+
+        Returns:
+            str: Nama pelanggan pemilik pesanan.
+        """
+        return obj.user.name
+
+    @admin.display(description='Email Pelanggan')
+    def customer_email(self, obj):
+        """
+        Mengambil alamat email pelanggan dari data pengguna terkait.
+
+        Fungsi ini menampilkan email pelanggan untuk keperluan komunikasi
+        atau verifikasi pesanan.
+
+        Args:
+            obj (Order): Objek pesanan yang sedang ditampilkan.
+
+        Returns:
+            str: Alamat email pelanggan.
+        """
+        return obj.user.email
+
+    @admin.display(description='No. Telepon')
+    def customer_phone(self, obj):
+        """
+        Mengambil nomor telepon pelanggan dari data pengguna terkait.
+
+        Fungsi ini menampilkan nomor kontak pelanggan. Jika nomor tidak
+        tersedia, sistem akan menampilkan tanda hubung (-).
+
+        Args:
+            obj (Order): Objek pesanan yang sedang ditampilkan.
+
+        Returns:
+            str: Nomor telepon pelanggan atau tanda hubung (-).
+        """
+        return obj.user.phone_number or '-'
 
     def save_model(self, request, obj, form, change):
         """Menyimpan pesanan dan mencatat aktivitas admin.
