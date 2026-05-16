@@ -12,7 +12,6 @@ DATABASES = {  # SQLite
 }
 
 # CORS Configuration
-CORS_REPLACE_HTTPS_REFERER = True
 HOST_SCHEME = "https://"
 
 SECURE_BROWSER_XSS_FILTER = True
