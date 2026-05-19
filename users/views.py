@@ -81,9 +81,9 @@ verify_email_response = inline_serializer(
         OpenApiExample(
             'Contoh Request Registrasi',
             value={
-                'email': 'hannanime12@caerabouquet.shop',
-                'name': 'Hanna Fernanda',
-                'password': 'Annah123#',
+                'email': 'user@caerabouquet.my.id',
+                'name': 'Caera Bouquet',
+                'password': '5?]~L0z*J3b6',
             },
             request_only=True,
         ),
@@ -236,8 +236,8 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
         OpenApiExample(
             'Contoh Request Login',
             value={
-                'email': 'hannanime12@caerabouquet.shop',
-                'password': 'Annah123#',
+                'email': 'user@caerabouquet.my.id',
+                'password': '5?]~L0z*J3b6',
             },
             request_only=True,
         ),
