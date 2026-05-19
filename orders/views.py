@@ -12,7 +12,7 @@ from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiRespo
 from .models import Order
 from .services import create_order, create_order_with_single_transaction
 from .throttles import OrderCreateUserRateThrottle
-from .serializers import OrderCreateSerializer, OrderListSerializer
+from .serializers import OrderCreateSerializer, OrderListSerializer, OrderDetailSerializer
 
 logger = logging.getLogger('orders')
 security_logger = logging.getLogger('caera.security')
@@ -261,3 +261,38 @@ class OrderListCreateView(generics.ListCreateAPIView):
             },
             status=status.HTTP_201_CREATED
         )
+
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=['Pesanan'],
+        summary='Melihat rincian pesanan',
+        description='Endpoint ini menampilkan detail lengkap dari sebuah pesanan, termasuk alamat pengiriman dan catatan. Berguna untuk keperluan pembuatan kwitansi pembayaran.',
+        responses={
+            200: OrderDetailSerializer,
+            401: OpenApiResponse(description='Autentikasi diperlukan.'),
+            404: OpenApiResponse(description='Pesanan tidak ditemukan atau bukan milik pengguna.'),
+        },
+    )
+)
+class OrderDetailView(generics.RetrieveAPIView):
+    """Menampilkan detail pesanan pengguna.
+
+    View ini mengembalikan rincian lengkap pesanan yang diminta
+    selama pesanan tersebut adalah milik pengguna yang sedang login.
+    """
+
+    permission_classes = (IsAuthenticated,)
+    serializer_class = OrderDetailSerializer
+    lookup_field = 'id'
+
+    def get_queryset(self):
+        """Mengambil pesanan milik pengguna yang sedang login.
+
+        Returns:
+            QuerySet: Objek pesanan beserta relasi produknya.
+        """
+        if getattr(self, 'swagger_fake_view', False):
+            return Order.objects.none()
+        
+        return Order.objects.filter(user=self.request.user).prefetch_related('transactions__product')

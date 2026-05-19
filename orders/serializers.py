@@ -87,3 +87,19 @@ class OrderListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = ('order_id', 'items', 'total_price', 'status', 'created_at')
+
+
+class OrderDetailSerializer(serializers.ModelSerializer):
+    """
+    Menyajikan rincian lengkap pesanan pengguna.
+
+    Serializer ini mencakup informasi tambahan seperti alamat pengiriman
+    dan catatan, yang dibutuhkan untuk keperluan pembuatan kwitansi pembayaran.
+    """
+
+    order_id = serializers.IntegerField(source='id')
+    items = TransactionDetailSerializer(source='transactions', many=True, read_only=True)
+
+    class Meta:
+        model = Order
+        fields = ('order_id', 'items', 'total_price', 'status', 'delivery_address', 'notes', 'created_at')
