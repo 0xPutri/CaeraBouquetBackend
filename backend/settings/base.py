@@ -33,6 +33,7 @@ PASSWORD_RESET_BASE_URL = os.environ.get(
     'PASSWORD_RESET_BASE_URL',
     'http://localhost:3000/reset-password'
 )
+LOGIN_REDIRECT_URL = '/admin/'
 
 # Request/upload size guardrails
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', 1048576))
