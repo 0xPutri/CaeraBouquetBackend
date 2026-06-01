@@ -222,7 +222,39 @@
     <!-- Daftar Aplikasi -->
     <div class="flex flex-col lg:flex-row lg:gap-8">
         <div class="grow">
-            {% include "unfold/helpers/app_list_default.html" %}
+            <h2 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Modul Sistem</h2>
+            {% if app_list %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {% for app in app_list %}
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:scale-[1.01] duration-200">
+                    <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 flex items-center justify-between">
+                        <a href="{{ app.app_url }}" class="text-lg font-bold text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors" title="{% blocktranslate with name=app.name %}Models in the {{ name }} application{% endblocktranslate %}">{{ app.name }}</a>
+                    </div>
+                    <ul class="divide-y divide-gray-100 dark:divide-gray-700/50 grow bg-white dark:bg-gray-800">
+                        {% for model in app.models %}
+                        <li class="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group">
+                            <a href="{% if model.admin_url %}{{ model.admin_url }}{% else %}#{% endif %}" class="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors flex-grow">{{ model.name }}</a>
+                            <div class="flex space-x-2 ml-4">
+                                {% if model.add_url %}
+                                <a href="{{ model.add_url }}" class="flex items-center justify-center w-7 h-7 rounded-md text-primary-600 bg-primary-50 hover:bg-primary-100 hover:text-primary-700 dark:text-primary-400 dark:bg-primary-900/20 dark:hover:bg-primary-900/40 transition-colors" title="Tambah">
+                                    <span class="material-symbols-outlined text-[18px]">add</span>
+                                </a>
+                                {% endif %}
+                                {% if model.admin_url %}
+                                <a href="{{ model.admin_url }}" class="flex items-center justify-center w-7 h-7 rounded-md text-gray-400 bg-gray-50 hover:bg-gray-100 hover:text-primary-600 dark:text-gray-500 dark:bg-gray-800 dark:hover:bg-gray-700 dark:hover:text-primary-400 transition-colors" title="Ubah">
+                                    <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-sm">Tidak ada modul yang tersedia.</p>
+            {% endif %}
         </div>
 
         {% include "unfold/helpers/history.html" %}
