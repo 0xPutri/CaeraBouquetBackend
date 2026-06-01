@@ -346,7 +346,6 @@ class VerifyEmailView(generics.GenericAPIView):
 
         user = User.objects.filter(
             email_verification_token=token,
-            is_email_verified=False,
         ).first()
 
         if not user:
@@ -356,14 +355,15 @@ class VerifyEmailView(generics.GenericAPIView):
             )
             return HttpResponseRedirect(f"{frontend_url}/login?verify=error&detail=invalid_token")
 
-        user.is_email_verified = True
-        user.email_verification_token = None
-        user.save(update_fields=['is_email_verified', 'email_verification_token'])
+        if not user.is_email_verified:
+            user.is_email_verified = True
+            user.save(update_fields=['is_email_verified'])
 
-        logger.info(
-            "Email pengguna berhasil diverifikasi.",
-            extra={"user_id": str(user.id), "email": user.email}
-        )
+            logger.info(
+                "Email pengguna berhasil diverifikasi.",
+                extra={"user_id": str(user.id), "email": user.email}
+            )
+            
         return HttpResponseRedirect(f"{frontend_url}/login?verify=success")
 
 
